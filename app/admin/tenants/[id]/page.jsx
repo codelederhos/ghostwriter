@@ -1,0 +1,303 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Save, Play, ArrowLeft } from "lucide-react";
+import Link from "next/link";
+
+export default function TenantDetailPage() {
+  const { id } = useParams();
+  const router = useRouter();
+  const [tenant, setTenant] = useState(null);
+  const [settings, setSettings] = useState({});
+  const [profile, setProfile] = useState({});
+  const [topics, setTopics] = useState([]);
+  const [tab, setTab] = useState("profile");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => { loadTenant(); }, [id]);
+
+  async function loadTenant() {
+    const res = await fetch(`/api/tenants/${id}`);
+    const data = await res.json();
+    setTenant(data.tenant);
+    setSettings(data.settings || {});
+    setProfile(data.profile || {});
+    setTopics(data.topics || []);
+  }
+
+  async function saveSettings() {
+    setSaving(true);
+    setMsg("");
+    await fetch("/api/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update_settings", tenantId: id, settings }),
+    });
+    setMsg("Settings gespeichert");
+    setSaving(false);
+  }
+
+  async function saveProfile() {
+    setSaving(true);
+    setMsg("");
+    await fetch("/api/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update_profile", tenantId: id, profile }),
+    });
+    setMsg("Profil gespeichert");
+    setSaving(false);
+  }
+
+  async function saveTopics() {
+    setSaving(true);
+    setMsg("");
+    await fetch("/api/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update_topics", tenantId: id, topics }),
+    });
+    setMsg("Themen gespeichert");
+    setSaving(false);
+  }
+
+  async function triggerRun(preview = false) {
+    setMsg("Pipeline wird ausgeführt...");
+    const res = await fetch("/api/autopilot/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId: id, preview }),
+    });
+    const data = await res.json();
+    setMsg(data.ok ? `Fertig! ${data.results?.length || 0} Posts.` : `Fehler: ${data.error}`);
+  }
+
+  if (!tenant) return <div className="p-8">Laden...</div>;
+
+  const tabs = [
+    { key: "profile", label: "Firmenprofil" },
+    { key: "settings", label: "API & Provider" },
+    { key: "topics", label: "Themen" },
+    { key: "reporting", label: "Reporting" },
+    { key: "scheduling", label: "Scheduling" },
+  ];
+
+  return (
+    <div>
+      <Link href="/admin/tenants" className="btn-ghost text-sm mb-4 inline-flex">
+        <ArrowLeft size={14} /> Zurück
+      </Link>
+
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">{tenant.name}</h1>
+          <p className="text-sm text-muted-foreground">/{tenant.slug}</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => triggerRun(true)} className="btn-outline"><Play size={14} /> Vorschau</button>
+          <button onClick={() => triggerRun(false)} className="btn-primary"><Play size={14} /> Jetzt posten</button>
+        </div>
+      </div>
+
+      {msg && <div className="mb-4 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-800 text-sm">{msg}</div>}
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-border">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab: Profile */}
+      {tab === "profile" && (
+        <div className="admin-card space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Firmenname" value={profile.company_name} onChange={(v) => setProfile({ ...profile, company_name: v })} />
+            <FormField label="Branche" value={profile.industry} onChange={(v) => setProfile({ ...profile, industry: v })} placeholder="Immobilien" />
+            <FormField label="Region" value={profile.region} onChange={(v) => setProfile({ ...profile, region: v })} placeholder="Nordhessen" />
+            <FormField label="Website" value={profile.website_url} onChange={(v) => setProfile({ ...profile, website_url: v })} placeholder="https://..." />
+          </div>
+          <FormField label="USP" value={profile.usp} onChange={(v) => setProfile({ ...profile, usp: v })} textarea />
+          <FormField label="Positionierung" value={profile.positioning} onChange={(v) => setProfile({ ...profile, positioning: v })} textarea />
+          <FormField label="Leistungen" value={profile.services} onChange={(v) => setProfile({ ...profile, services: v })} textarea />
+          <FormField label="Brand Voice" value={profile.brand_voice} onChange={(v) => setProfile({ ...profile, brand_voice: v })} placeholder="professionell, nahbar" />
+          <FormField label="Zielgruppe" value={profile.target_audience} onChange={(v) => setProfile({ ...profile, target_audience: v })} textarea />
+          <FormField label="Sprachen (kommagetrennt)" value={(profile.languages || []).join(", ")} onChange={(v) => setProfile({ ...profile, languages: v.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) })} placeholder="de, en, fr" />
+          <button onClick={saveProfile} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
+        </div>
+      )}
+
+      {/* Tab: Settings (API Keys) */}
+      {tab === "settings" && (
+        <div className="admin-card space-y-6">
+          <div>
+            <h3 className="font-semibold mb-3">Text-Modell</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="form-group">
+                <label className="form-label">Provider</label>
+                <select className="form-select" value={settings.text_provider || "anthropic"} onChange={(e) => setSettings({ ...settings, text_provider: e.target.value })}>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="openai">OpenAI (GPT)</option>
+                  <option value="mistral">Mistral</option>
+                  <option value="custom">Custom Endpoint</option>
+                </select>
+              </div>
+              <FormField label="Modell" value={settings.text_model} onChange={(v) => setSettings({ ...settings, text_model: v })} placeholder="claude-sonnet-4-20250514" />
+            </div>
+            <FormField label="API Key" value={settings.text_api_key} onChange={(v) => setSettings({ ...settings, text_api_key: v })} placeholder="sk-..." type="password" />
+            {settings.text_provider === "custom" && (
+              <FormField label="Custom Endpoint" value={settings.text_custom_endpoint} onChange={(v) => setSettings({ ...settings, text_custom_endpoint: v })} placeholder="https://..." />
+            )}
+          </div>
+
+          <hr className="border-border" />
+
+          <div>
+            <h3 className="font-semibold mb-3">Bild-Modell</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="form-group">
+                <label className="form-label">Provider</label>
+                <select className="form-select" value={settings.image_provider || "dalle3"} onChange={(e) => setSettings({ ...settings, image_provider: e.target.value })}>
+                  <option value="dalle3">DALL-E 3 (OpenAI)</option>
+                  <option value="flux">Flux (fal.ai)</option>
+                  <option value="stock">Stock (Unsplash/Pexels)</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <FormField label="Bild API Key" value={settings.image_api_key} onChange={(v) => setSettings({ ...settings, image_api_key: v })} type="password" />
+            </div>
+            <FormField label="Bild-Stil Prefix" value={settings.image_style_prefix} onChange={(v) => setSettings({ ...settings, image_style_prefix: v })} textarea placeholder="Fotorealistisch, professionell, keine KI-Gesichter..." />
+          </div>
+
+          <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
+        </div>
+      )}
+
+      {/* Tab: Topics */}
+      {tab === "topics" && (
+        <div className="admin-card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Themen-Kategorien</h3>
+            <button
+              onClick={() => setTopics([...topics, { category_id: topics.length, label: "", description: "", default_cta: "LEARN_MORE", is_active: true }])}
+              className="btn-outline text-xs"
+            >
+              + Thema
+            </button>
+          </div>
+          <div className="space-y-3">
+            {topics.map((t, i) => (
+              <div key={i} className="grid grid-cols-12 gap-2 items-start p-3 rounded-lg bg-muted/30">
+                <span className="col-span-1 text-xs text-muted-foreground pt-2">{t.category_id}</span>
+                <input
+                  className="col-span-3 form-input text-sm"
+                  value={t.label}
+                  onChange={(e) => { const n = [...topics]; n[i].label = e.target.value; setTopics(n); }}
+                  placeholder="Label"
+                />
+                <input
+                  className="col-span-5 form-input text-sm"
+                  value={t.description}
+                  onChange={(e) => { const n = [...topics]; n[i].description = e.target.value; setTopics(n); }}
+                  placeholder="Beschreibung"
+                />
+                <select
+                  className="col-span-2 form-select text-sm"
+                  value={t.default_cta}
+                  onChange={(e) => { const n = [...topics]; n[i].default_cta = e.target.value; setTopics(n); }}
+                >
+                  <option value="LEARN_MORE">Mehr erfahren</option>
+                  <option value="CALL">Anrufen</option>
+                </select>
+                <button
+                  className="col-span-1 btn-ghost text-destructive text-xs"
+                  onClick={() => setTopics(topics.filter((_, j) => j !== i))}
+                >
+                  X
+                </button>
+              </div>
+            ))}
+          </div>
+          <button onClick={saveTopics} className="btn-primary mt-4" disabled={saving}><Save size={14} /> Speichern</button>
+        </div>
+      )}
+
+      {/* Tab: Reporting */}
+      {tab === "reporting" && (
+        <div className="admin-card space-y-4">
+          <h3 className="font-semibold">Telegram</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Bot Token" value={settings.telegram_bot_token} onChange={(v) => setSettings({ ...settings, telegram_bot_token: v })} type="password" />
+            <FormField label="Chat ID" value={settings.telegram_chat_id} onChange={(v) => setSettings({ ...settings, telegram_chat_id: v })} />
+          </div>
+          <hr className="border-border" />
+          <h3 className="font-semibold">E-Mail</h3>
+          <FormField label="Report E-Mail" value={settings.report_email} onChange={(v) => setSettings({ ...settings, report_email: v })} placeholder="info@beispiel.de" />
+          <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
+        </div>
+      )}
+
+      {/* Tab: Scheduling */}
+      {tab === "scheduling" && (
+        <div className="admin-card space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="form-group">
+              <label className="form-label">Frequenz (Stunden)</label>
+              <input
+                type="number"
+                className="form-input"
+                value={settings.frequency_hours || 72}
+                onChange={(e) => setSettings({ ...settings, frequency_hours: parseInt(e.target.value) })}
+                min={1}
+              />
+              <p className="text-xs text-muted-foreground mt-1">72 = alle 3 Tage</p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Autopilot aktiv</label>
+              <select
+                className="form-select"
+                value={settings.is_active ? "true" : "false"}
+                onChange={(e) => setSettings({ ...settings, is_active: e.target.value === "true" })}
+              >
+                <option value="true">Aktiv</option>
+                <option value="false">Pausiert</option>
+              </select>
+            </div>
+          </div>
+          {settings.next_run_at && (
+            <p className="text-sm text-muted-foreground">
+              Nächster Run: {new Date(settings.next_run_at).toLocaleString("de")}
+            </p>
+          )}
+          <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FormField({ label, value, onChange, placeholder, type = "text", textarea = false }) {
+  const Component = textarea ? "textarea" : "input";
+  return (
+    <div className="form-group">
+      <label className="form-label">{label}</label>
+      <Component
+        type={type}
+        className={textarea ? "form-textarea" : "form-input"}
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
