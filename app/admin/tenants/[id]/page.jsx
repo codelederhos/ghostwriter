@@ -570,10 +570,10 @@ export default function TenantDetailPage() {
             <h3 className="font-semibold mb-3">Abrechnungsmodell</h3>
             <div className="space-y-2">
               <label
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                className={`radio-option flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer ${
                   (settings.billing_mode || "own_key") === "platform"
-                    ? "border-emerald-400 bg-emerald-50"
-                    : "border-border hover:border-muted-foreground/30"
+                    ? "radio-option-active border-emerald-400 bg-emerald-50"
+                    : "border-border"
                 }`}
                 onClick={() => setSettings({ ...settings, billing_mode: "platform" })}
               >
@@ -591,10 +591,10 @@ export default function TenantDetailPage() {
                 <span className="text-sm font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">~€3/Post</span>
               </label>
               <label
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                className={`radio-option flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer ${
                   (settings.billing_mode || "own_key") === "own_key"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/30"
+                    ? "radio-option-active-alt border-primary bg-primary/5"
+                    : "border-border"
                 }`}
                 onClick={() => setSettings({ ...settings, billing_mode: "own_key" })}
               >
@@ -621,10 +621,10 @@ export default function TenantDetailPage() {
             <h3 className="font-semibold mb-3">Optionen</h3>
             <div className="space-y-2">
               <label
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                className={`radio-option flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer ${
                   settings.backlinks_enabled
-                    ? "border-emerald-400 bg-emerald-50"
-                    : "border-border hover:border-muted-foreground/30"
+                    ? "radio-option-active border-emerald-400 bg-emerald-50"
+                    : "border-border"
                 }`}
                 onClick={() => setSettings({ ...settings, backlinks_enabled: true })}
               >
@@ -642,10 +642,10 @@ export default function TenantDetailPage() {
                 <span className="text-sm font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">+€1/Post</span>
               </label>
               <label
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                className={`radio-option flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer ${
                   !settings.backlinks_enabled
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/30"
+                    ? "radio-option-active-alt border-primary bg-primary/5"
+                    : "border-border"
                 }`}
                 onClick={() => setSettings({ ...settings, backlinks_enabled: false })}
               >

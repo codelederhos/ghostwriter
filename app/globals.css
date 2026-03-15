@@ -209,6 +209,23 @@ body {
     transform: scale(1.1);
   }
 
+  /* Radio Option Card */
+  .radio-option {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .radio-option:hover:not(.radio-option-active) {
+    border-color: rgba(156, 163, 175, 0.5);
+    transform: translateY(-1px);
+  }
+  .radio-option-active {
+    animation: radioGlow 0.4s ease-out;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+  }
+  .radio-option-active-alt {
+    animation: radioGlow 0.4s ease-out;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  }
+
   /* Legend */
   .dw-legend { display: flex; gap: 16px; font-size: 12px; @apply text-muted-foreground; margin-bottom: 8px; }
   .dw-legend-dot {
@@ -260,6 +277,11 @@ body {
 }
 
 /* Dashboard Animations (outside @layer to work with keyframes) */
+@keyframes radioGlow {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.1); }
+  100% { box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
+}
 @keyframes statLineDraw { to { stroke-dashoffset: 0; } }
 @keyframes barRise { to { height: var(--bar-h); } }
 @keyframes lineDraw { to { stroke-dashoffset: 0; } }
