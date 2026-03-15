@@ -271,7 +271,7 @@ export default function TenantDetailPage() {
     { key: "billing", label: "Kosten" },
     { key: "ctas", label: "CTAs" },
     { key: "topics", label: "Themen" },
-    { key: "images", label: "Referenzbilder" },
+    { key: "images", label: "Bilder" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
     { key: "users", label: "Zugänge" },
@@ -1119,41 +1119,55 @@ export default function TenantDetailPage() {
 
           {/* Post-Bilder */}
           <div className="admin-card">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold">Post-Referenzbilder</h3>
-              <label className="btn-outline text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50 hover:border-emerald-400 cursor-pointer">
-                <Plus size={12} /> Bild hochladen
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handlePostImageUpload(f, "", []);
-                  }}
-                />
-              </label>
-            </div>
+            <h3 className="font-semibold mb-1">Post-Referenzbilder</h3>
             <p className="text-xs text-muted-foreground mb-4">
-              Bilder die die KI frei wählen kann wenn sie zum Thema passen. Beschreibung + Kategorie-Zuordnung für bessere Auswahl.
+              Bilder die die KI frei wählen kann wenn sie zum Thema passen. Pro Bild: Beschreibung + Kategorie-Zuordnung.
             </p>
 
-            {refImages.post.length > 0 ? (
-              <div className="grid grid-cols-3 gap-3">
+            {/* Drag & Drop Upload Zone */}
+            <label
+              className="flex flex-col items-center justify-center py-8 rounded-lg border-2 border-dashed border-border hover:border-emerald-400 hover:bg-emerald-50/30 cursor-pointer transition-all mb-4"
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-emerald-400", "bg-emerald-50/30"); }}
+              onDragLeave={(e) => { e.currentTarget.classList.remove("border-emerald-400", "bg-emerald-50/30"); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove("border-emerald-400", "bg-emerald-50/30");
+                const f = e.dataTransfer.files?.[0];
+                if (f && f.type.startsWith("image/")) handlePostImageUpload(f, "", []);
+              }}
+            >
+              <Plus size={24} className="text-muted-foreground/30 mb-2" />
+              <span className="text-sm text-muted-foreground">Bild hierher ziehen oder klicken</span>
+              <span className="text-[10px] text-muted-foreground/50 mt-1">JPG, PNG, WebP · max 25 MB</span>
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handlePostImageUpload(f, "", []);
+              }} />
+            </label>
+
+            {uploading && (
+              <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
+                <span className="w-4 h-4 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" />
+                Wird hochgeladen und konvertiert...
+              </div>
+            )}
+
+            {refImages.post.length > 0 && (
+              <div className="space-y-3">
                 {refImages.post.map((img) => (
-                  <div key={img.id} className="rounded-lg border border-border overflow-hidden group">
-                    <div className="relative">
-                      <img src={img.thumb_url || img.image_url} alt={img.description || ""} className="w-full aspect-video object-cover cursor-pointer" onClick={() => window.open(img.image_url, "_blank")} title="Klicken zum Vergrößern" />
+                  <div key={img.id} className="flex gap-3 p-2 rounded-lg border border-border/50 hover:border-border transition-colors group">
+                    <div className="relative flex-shrink-0">
+                      <img src={img.thumb_url || img.image_url} alt={img.description || ""} className="w-28 h-20 object-cover rounded-md cursor-pointer" onClick={() => window.open(img.image_url, "_blank")} title="Vergrößern" />
                       <button
                         onClick={() => deleteRefImage(img.id)}
-                        className="absolute top-1 right-1 dw-icon-btn-destructive bg-white/80 backdrop-blur-sm !w-6 !h-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-1 -right-1 dw-icon-btn-destructive bg-white/90 backdrop-blur-sm !w-5 !h-5 opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        <Trash2 size={10} />
+                        <Trash2 size={9} />
                       </button>
                     </div>
-                    <div className="p-2 space-y-1.5">
+                    <div className="flex-1 space-y-1.5 min-w-0">
                       <input
-                        className="form-input text-xs"
+                        className="form-input text-sm"
                         value={img.description || ""}
                         onChange={(e) => {
                           const updated = refImages.post.map(i => i.id === img.id ? { ...i, description: e.target.value } : i);
@@ -1166,7 +1180,7 @@ export default function TenantDetailPage() {
                             body: JSON.stringify({ action: "update_post_image", imageId: img.id, description: e.target.value, categories: img.categories || [] }),
                           });
                         }}
-                        placeholder="Beschreibung..."
+                        placeholder="Bildbeschreibung für die KI..."
                       />
                       <div className="flex flex-wrap gap-1">
                         {topics.map((t, ti) => {
@@ -1199,10 +1213,6 @@ export default function TenantDetailPage() {
                     </div>
                   </div>
                 ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                Noch keine Referenzbilder. Lade Bilder hoch, die die KI beim Schreiben verwenden kann.
               </div>
             )}
           </div>
