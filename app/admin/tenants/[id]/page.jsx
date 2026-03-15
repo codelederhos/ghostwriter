@@ -32,6 +32,9 @@ export default function TenantDetailPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [refImages, setRefImages] = useState({ persona: [], post: [] });
+  const [billingData, setBillingData] = useState(null);
+  const [invoiceStart, setInvoiceStart] = useState("");
+  const [invoiceEnd, setInvoiceEnd] = useState("");
   const [uploading, setUploading] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [testMode, setTestMode] = useState("random"); // "random" | "manual"
@@ -96,6 +99,27 @@ export default function TenantDetailPage() {
       body: JSON.stringify({ action: "update_topics", tenantId: id, topics }),
     });
     setMsg("Themen gespeichert");
+    setSaving(false);
+  }
+
+  async function loadBilling() {
+    const res = await fetch(`/api/tenants/${id}/billing`);
+    const data = await res.json();
+    setBillingData(data);
+  }
+
+  async function createInvoice() {
+    if (!invoiceStart || !invoiceEnd) return;
+    setSaving(true);
+    await fetch(`/api/tenants/${id}/billing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "create_invoice", period_start: invoiceStart, period_end: invoiceEnd }),
+    });
+    setMsg("Abrechnungszeitraum erstellt");
+    setInvoiceStart("");
+    setInvoiceEnd("");
+    loadBilling();
     setSaving(false);
   }
 
@@ -244,6 +268,7 @@ export default function TenantDetailPage() {
   const tabs = [
     { key: "profile", label: "Firmenprofil" },
     { key: "settings", label: "API & Provider" },
+    { key: "billing", label: "Kosten" },
     { key: "ctas", label: "CTAs" },
     { key: "topics", label: "Themen" },
     { key: "images", label: "Referenzbilder" },
@@ -277,7 +302,7 @@ export default function TenantDetailPage() {
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => { setTab(t.key); if (t.key === "users") loadUsers(); if (t.key === "images") loadRefImages(); }}
+            onClick={() => { setTab(t.key); if (t.key === "users") loadUsers(); if (t.key === "images") loadRefImages(); if (t.key === "billing") loadBilling(); }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
@@ -426,37 +451,166 @@ export default function TenantDetailPage() {
         </div>
       )}
 
+      {/* Tab: Kosten */}
+      {tab === "billing" && (
+        <div className="space-y-6">
+          {/* Offene Kosten */}
+          <div className="admin-card">
+            <h3 className="font-semibold mb-3">Offene Kosten</h3>
+            {!billingData ? (
+              <div className="animate-pulse space-y-2">
+                <div className="h-10 bg-muted rounded" />
+                <div className="h-10 bg-muted rounded" />
+              </div>
+            ) : billingData.openPosts?.length > 0 ? (
+              <>
+                <div className="divide-y divide-border/30">
+                  {billingData.openPosts.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between py-2 px-2 rounded hover:bg-amber-50/50">
+                      <div>
+                        <p className="text-sm font-medium">{p.blog_title}</p>
+                        <p className="text-xs text-muted-foreground">{p.category} · {p.angle} · {new Date(p.created_at).toLocaleDateString("de")}</p>
+                      </div>
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        {((billingData.pricing?.post_price_cents || 300) / 100).toFixed(2)} €
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+                  <span className="text-sm font-semibold">Summe offen</span>
+                  <span className="text-sm font-bold text-amber-700">
+                    {((billingData.openTotal || 0) / 100).toFixed(2)} €
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Keine offenen Kosten.</p>
+            )}
+          </div>
+
+          {/* Zeitraum abrechnen */}
+          <div className="admin-card">
+            <h3 className="font-semibold mb-3">Zeitraum abrechnen</h3>
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
+              <div className="form-group">
+                <label className="form-label">Von</label>
+                <input type="date" className="form-input text-sm" value={invoiceStart} onChange={(e) => setInvoiceStart(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Bis</label>
+                <input type="date" className="form-input text-sm" value={invoiceEnd} onChange={(e) => setInvoiceEnd(e.target.value)} />
+              </div>
+              <button onClick={createInvoice} className="btn-primary h-9" disabled={saving || !invoiceStart || !invoiceEnd}>
+                Abrechnen
+              </button>
+            </div>
+          </div>
+
+          {/* Vergangene Abrechnungen */}
+          <div className="admin-card">
+            <h3 className="font-semibold mb-3">Abrechnungshistorie</h3>
+            {billingData?.periods?.length > 0 ? (
+              <div className="space-y-2">
+                {billingData.periods.map((p) => (
+                  <div key={p.id} className={`flex items-center justify-between p-3 rounded-lg border ${
+                    p.status === "paid" ? "bg-muted/30 border-border" :
+                    p.status === "invoiced" ? "bg-gray-50 border-gray-200" :
+                    "bg-amber-50/50 border-amber-200"
+                  }`}>
+                    <div>
+                      <p className="text-sm font-medium">
+                        {new Date(p.period_start).toLocaleDateString("de")} – {new Date(p.period_end).toLocaleDateString("de")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.post_count} Posts · {p.backlink_count} Backlinks
+                        {p.membership_cents > 0 && ` · Mitglied ${(p.membership_cents / 100).toFixed(2)} €`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">{(p.total_cents / 100).toFixed(2)} €</span>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                        p.status === "paid" ? "bg-emerald-100 text-emerald-700" :
+                        p.status === "invoiced" ? "bg-gray-200 text-gray-600" :
+                        "bg-amber-100 text-amber-700"
+                      }`}>
+                        {p.status === "paid" ? "Bezahlt" : p.status === "invoiced" ? "In Rechnung gestellt" : "Offen"}
+                      </span>
+                      {p.status === "invoiced" && (
+                        <button
+                          className="text-[10px] text-emerald-600 hover:underline"
+                          onClick={async () => {
+                            await fetch(`/api/tenants/${id}/billing`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "update_status", periodId: p.id, status: "paid" }),
+                            });
+                            loadBilling();
+                          }}
+                        >
+                          Als bezahlt markieren
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Noch keine Abrechnungen.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Tab: Settings (API Keys) */}
       {tab === "settings" && (
         <div className="admin-card space-y-6">
-          {/* Billing Mode */}
+          {/* Billing Mode — Radio Buttons */}
           <div>
             <h3 className="font-semibold mb-3">Abrechnungsmodell</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                className={`p-3 rounded-lg border-2 text-left transition-all ${
+            <div className="space-y-2">
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
                   (settings.billing_mode || "own_key") === "platform"
                     ? "border-emerald-400 bg-emerald-50"
                     : "border-border hover:border-muted-foreground/30"
                 }`}
                 onClick={() => setSettings({ ...settings, billing_mode: "platform" })}
               >
-                <p className="font-medium text-sm">Platform (All-Inclusive)</p>
-                <p className="text-xs text-muted-foreground mt-1">Code-Lederhos API Keys. Abrechnung pro Post (~€3).</p>
-                <p className="text-xs text-muted-foreground">Text + 2 Bilder + SEO inklusive.</p>
-              </button>
-              <button
-                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  (settings.billing_mode || "own_key") === "platform" ? "border-emerald-500" : "border-gray-300"
+                }`}>
+                  <span className={`w-2.5 h-2.5 rounded-full transition-all ${
+                    (settings.billing_mode || "own_key") === "platform" ? "bg-emerald-500 scale-100" : "bg-transparent scale-0"
+                  }`} />
+                </span>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Platform (All-Inclusive)</p>
+                  <p className="text-xs text-muted-foreground">Text + 2 Bilder + SEO inklusive</p>
+                </div>
+                <span className="text-sm font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">~€3/Post</span>
+              </label>
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
                   (settings.billing_mode || "own_key") === "own_key"
                     ? "border-primary bg-primary/5"
                     : "border-border hover:border-muted-foreground/30"
                 }`}
                 onClick={() => setSettings({ ...settings, billing_mode: "own_key" })}
               >
-                <p className="font-medium text-sm">Eigene API Keys</p>
-                <p className="text-xs text-muted-foreground mt-1">Kunde bringt eigene Keys mit.</p>
-                <p className="text-xs text-muted-foreground">Keine Zusatzkosten pro Post.</p>
-              </button>
+                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  (settings.billing_mode || "own_key") === "own_key" ? "border-primary" : "border-gray-300"
+                }`}>
+                  <span className={`w-2.5 h-2.5 rounded-full transition-all ${
+                    (settings.billing_mode || "own_key") === "own_key" ? "bg-primary scale-100" : "bg-transparent scale-0"
+                  }`} />
+                </span>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Eigene API Keys</p>
+                  <p className="text-xs text-muted-foreground">Kunde bringt eigene Keys mit</p>
+                </div>
+                <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">€0</span>
+              </label>
             </div>
           </div>
 

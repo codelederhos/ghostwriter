@@ -6,6 +6,7 @@ import { Save } from "lucide-react";
 export default function SettingsPage() {
   const [msg, setMsg] = useState(null);
   const [models, setModels] = useState(null);
+  const [pricing, setPricing] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { loadConfig(); }, []);
@@ -19,12 +20,14 @@ export default function SettingsPage() {
         openai: { model: "gpt-4.1-mini", label: "GPT-4.1 Mini", ctx: "1M" },
         mistral: { model: "mistral-large-latest", label: "Mistral Large", ctx: "128k" },
       });
+      setPricing(data.pricing || { post_price_cents: 300, backlink_price_cents: 100, membership_monthly_cents: 0 });
     } catch {
       setModels({
         anthropic: { model: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", ctx: "200k" },
         openai: { model: "gpt-4.1-mini", label: "GPT-4.1 Mini", ctx: "1M" },
         mistral: { model: "mistral-large-latest", label: "Mistral Large", ctx: "128k" },
       });
+      setPricing({ post_price_cents: 300, backlink_price_cents: 100, membership_monthly_cents: 0 });
     }
   }
 
@@ -91,6 +94,52 @@ export default function SettingsPage() {
             </div>
           )}
           {msg && <p className="text-sm mt-3 text-emerald-600">{msg}</p>}
+        </div>
+
+        {/* Pricing */}
+        <div className="admin-card">
+          <h2 className="text-lg font-semibold mb-2">Preise (Platform-Modus)</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Diese Preise gelten für Tenants im Platform-Modus (All-Inclusive). Angaben in Cent.
+          </p>
+          {pricing && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="form-group">
+                  <label className="form-label">Pro Post (Cent)</label>
+                  <input className="form-input text-sm" type="number" value={pricing.post_price_cents || 0}
+                    onChange={(e) => setPricing({ ...pricing, post_price_cents: parseInt(e.target.value) || 0 })} />
+                  <p className="text-[11px] text-muted-foreground/60 mt-1">{((pricing.post_price_cents || 0) / 100).toFixed(2)} €</p>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Backlink (Cent)</label>
+                  <input className="form-input text-sm" type="number" value={pricing.backlink_price_cents || 0}
+                    onChange={(e) => setPricing({ ...pricing, backlink_price_cents: parseInt(e.target.value) || 0 })} />
+                  <p className="text-[11px] text-muted-foreground/60 mt-1">{((pricing.backlink_price_cents || 0) / 100).toFixed(2)} €</p>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Mitgliedsbeitrag/Monat (Cent)</label>
+                  <input className="form-input text-sm" type="number" value={pricing.membership_monthly_cents || 0}
+                    onChange={(e) => setPricing({ ...pricing, membership_monthly_cents: parseInt(e.target.value) || 0 })} />
+                  <p className="text-[11px] text-muted-foreground/60 mt-1">{((pricing.membership_monthly_cents || 0) / 100).toFixed(2)} €</p>
+                </div>
+              </div>
+              <button onClick={async () => {
+                setSaving(true);
+                await fetch("/api/admin/config", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ key: "pricing", value: pricing }),
+                });
+                setMsg("Preise gespeichert");
+                setSaving(false);
+                setTimeout(() => setMsg(null), 3000);
+              }} className="btn-primary" disabled={saving}>
+                <Save size={14} /> Speichern
+              </button>
+            </div>
+          )}
+          {msg === "Preise gespeichert" && <p className="text-sm mt-3 text-emerald-600">{msg}</p>}
         </div>
 
         {/* Global Scheduler */}
