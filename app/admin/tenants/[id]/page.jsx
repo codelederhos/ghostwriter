@@ -271,11 +271,28 @@ export default function TenantDetailPage() {
         const handleCatDragStart = (i) => setDragItem({ type: "cat", catIdx: i });
         const handleCatDragOver = (e, i) => {
           e.preventDefault();
-          if (!dragItem || dragItem.type !== "cat" || dragItem.catIdx === i) return;
-          setDropTarget({ type: "cat", catIdx: i });
+          if (!dragItem) return;
+          if (dragItem.type === "cat" && dragItem.catIdx === i) return;
+          if (dragItem.type === "angle" && dragItem.catIdx === i) return;
+          setDropTarget({ type: dragItem.type === "angle" ? "angle-on-cat" : "cat", catIdx: i });
         };
         const handleCatDrop = (i) => {
-          if (!dragItem || dragItem.type !== "cat") return;
+          if (!dragItem) return;
+          if (dragItem.type === "angle") {
+            // Angle auf Kategorie-Header droppen → ans Ende einfügen
+            const n = [...topics];
+            const srcAngles = [...(n[dragItem.catIdx].angles || DEFAULT_ANGLES)];
+            const [moved] = srcAngles.splice(dragItem.angleIdx, 1);
+            n[dragItem.catIdx].angles = srcAngles.map((a, idx) => ({ ...a, key: idx + 1 }));
+            const dstAngles = [...(n[i].angles || DEFAULT_ANGLES)];
+            dstAngles.push(moved);
+            n[i].angles = dstAngles.map((a, idx) => ({ ...a, key: idx + 1 }));
+            setTopics(n);
+            setDragItem(null);
+            setDropTarget(null);
+            return;
+          }
+          if (dragItem.type !== "cat") return;
           const n = [...topics];
           const [moved] = n.splice(dragItem.catIdx, 1);
           n.splice(i, 0, moved);
@@ -366,7 +383,7 @@ export default function TenantDetailPage() {
               {topics.map((t, i) => {
                 const isExpanded = expandedTopic === i;
                 const angles = t.angles || DEFAULT_ANGLES;
-                const isDragOverCat = dropTarget?.type === "cat" && dropTarget.catIdx === i;
+                const isDragOverCat = (dropTarget?.type === "cat" || dropTarget?.type === "angle-on-cat") && dropTarget.catIdx === i;
                 return (
                   <div key={i}
                     className={isDragOverCat ? "border-t-2 border-emerald-400" : ""}
