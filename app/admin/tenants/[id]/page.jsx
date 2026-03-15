@@ -386,14 +386,15 @@ export default function TenantDetailPage() {
                 const isDragOverCat = (dropTarget?.type === "cat" || dropTarget?.type === "angle-on-cat") && dropTarget.catIdx === i;
                 return (
                   <div key={i}
-                    className={isDragOverCat ? "border-t-2 border-emerald-400" : ""}
                     onDragOver={(e) => handleCatDragOver(e, i)}
                     onDrop={() => handleCatDrop(i)}
                   >
                     {/* Category Row */}
                     <div
-                      className={`grid grid-cols-[24px_24px_1fr_2fr_120px_28px] gap-2 items-center px-2 py-2.5 rounded-lg transition-colors ${
-                        dragItem?.type === "cat" && dragItem.catIdx === i ? "opacity-40" : "hover:bg-muted/30"
+                      className={`grid grid-cols-[24px_24px_1fr_2fr_120px_28px] gap-2 items-center px-2 py-2.5 rounded-lg transition-all ${
+                        isDragOverCat
+                          ? "bg-emerald-50 ring-2 ring-emerald-400 ring-inset"
+                          : dragItem?.type === "cat" && dragItem.catIdx === i ? "opacity-40" : "hover:bg-muted/30"
                       }`}
                       draggable
                       onDragStart={() => handleCatDragStart(i)}
