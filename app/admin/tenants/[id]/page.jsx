@@ -31,6 +31,7 @@ export default function TenantDetailPage() {
   const [lastDeleteAt, setLastDeleteAt] = useState(0); // 3s-Regel Timer
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [msgType, setMsgType] = useState("success"); // "success" | "error"
   const [refImages, setRefImages] = useState({ persona: [], post: [] });
   const [billingData, setBillingData] = useState(null);
   const [invoiceStart, setInvoiceStart] = useState("");
@@ -42,6 +43,12 @@ export default function TenantDetailPage() {
   const [testAngleIdx, setTestAngleIdx] = useState(0);
   const [testRunning, setTestRunning] = useState(false);
   const [modelLabels, setModelLabels] = useState({});
+
+  function showMsg(text, type = "success") {
+    setMsg(text);
+    setMsgType(type);
+    setTimeout(() => setMsg(""), type === "error" ? 8000 : 4000);
+  }
 
   useEffect(() => { loadTenant(); loadModelLabels(); }, [id]);
 
@@ -74,7 +81,7 @@ export default function TenantDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "update_settings", tenantId: id, settings }),
     });
-    setMsg("Settings gespeichert");
+    showMsg("Settings gespeichert");
     setSaving(false);
   }
 
@@ -86,7 +93,7 @@ export default function TenantDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "update_profile", tenantId: id, profile }),
     });
-    setMsg("Profil gespeichert");
+    showMsg("Profil gespeichert");
     setSaving(false);
   }
 
@@ -98,7 +105,7 @@ export default function TenantDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "update_topics", tenantId: id, topics }),
     });
-    setMsg("Themen gespeichert");
+    showMsg("Themen gespeichert");
     setSaving(false);
   }
 
@@ -116,7 +123,7 @@ export default function TenantDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "create_invoice", period_start: invoiceStart, period_end: invoiceEnd }),
     });
-    setMsg("Abrechnungszeitraum erstellt");
+    showMsg("Abrechnungszeitraum erstellt");
     setInvoiceStart("");
     setInvoiceEnd("");
     loadBilling();
@@ -150,7 +157,7 @@ export default function TenantDetailPage() {
         body: JSON.stringify({ action: "upsert_persona", slot_index: slotIndex, image_url: url, thumb_url: thumb, description }),
       });
       loadRefImages();
-    } catch (e) { setMsg(`Upload-Fehler: ${e.message}`); }
+    } catch (e) { showMsg(`Upload-Fehler: ${e.message}`, "error"); }
     setUploading(false);
   }
 
@@ -164,7 +171,7 @@ export default function TenantDetailPage() {
         body: JSON.stringify({ action: "add_post_image", image_url: url, thumb_url: thumb, description, categories }),
       });
       loadRefImages();
-    } catch (e) { setMsg(`Upload-Fehler: ${e.message}`); }
+    } catch (e) { showMsg(`Upload-Fehler: ${e.message}`, "error"); }
     setUploading(false);
   }
 
@@ -199,10 +206,10 @@ export default function TenantDetailPage() {
     const data = await res.json();
     if (data.ok) {
       setNewUser({ email: "", name: "", password: "" });
-      setMsg("Zugang erstellt");
+      showMsg("Zugang erstellt");
       loadUsers();
     } else {
-      setMsg(data.error || "Fehler");
+      showMsg(data.error || "Fehler", "error");
     }
     setSaving(false);
   }
@@ -214,13 +221,13 @@ export default function TenantDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "delete_user", userId }),
     });
-    setMsg("Zugang gelöscht");
+    showMsg("Zugang gelöscht");
     loadUsers();
     setSaving(false);
   }
 
   async function triggerRun(preview = false, override = null, isTest = false) {
-    setMsg("Pipeline wird ausgeführt...");
+    showMsg("Pipeline wird ausgeführt...");
     const res = await fetch("/api/autopilot/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -229,9 +236,13 @@ export default function TenantDetailPage() {
     const data = await res.json();
     if (data.ok) {
       const r = data.results?.[0];
-      setMsg(r?.error ? `Fehler: ${r.error}` : `Fertig! "${r?.title || "Post"}" erstellt (${r?.status})`);
+      if (r?.error) {
+        showMsg(`Fehler: ${r.error}`, "error");
+      } else {
+        showMsg(`Fertig! "${r?.title || "Post"}" erstellt (${r?.status})`);
+      }
     } else {
-      setMsg(`Fehler: ${data.error}`);
+      showMsg(`Fehler: ${data.error}`, "error");
     }
   }
 
@@ -295,7 +306,19 @@ export default function TenantDetailPage() {
         </div>
       </div>
 
-      {msg && <div className="mb-4 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-800 text-sm">{msg}</div>}
+      {/* Toast */}
+      {msg && (
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all animate-[slideUp_0.3s_ease-out] ${
+          msgType === "error"
+            ? "bg-red-600 text-white"
+            : "bg-emerald-600 text-white"
+        }`}>
+          <div className="flex items-center gap-2">
+            <span>{msg}</span>
+            <button onClick={() => setMsg("")} className="text-white/60 hover:text-white ml-2">&times;</button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-border">
