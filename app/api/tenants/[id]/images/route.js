@@ -26,26 +26,25 @@ export async function POST(req, { params }) {
 
   switch (action) {
     case "upsert_persona": {
-      const { slot_index, image_url, description } = body;
-      // Upsert: delete existing slot, insert new
+      const { slot_index, image_url, thumb_url, description } = body;
       await query(
         "DELETE FROM tenant_reference_images WHERE tenant_id = $1 AND type = 'persona' AND slot_index = $2",
         [id, slot_index]
       );
       if (image_url) {
         await query(
-          "INSERT INTO tenant_reference_images (tenant_id, type, image_url, description, slot_index) VALUES ($1, 'persona', $2, $3, $4)",
-          [id, image_url, description || null, slot_index]
+          "INSERT INTO tenant_reference_images (tenant_id, type, image_url, thumb_url, description, slot_index) VALUES ($1, 'persona', $2, $3, $4, $5)",
+          [id, image_url, thumb_url || null, description || null, slot_index]
         );
       }
       return NextResponse.json({ ok: true });
     }
 
     case "add_post_image": {
-      const { image_url, description, categories } = body;
+      const { image_url, thumb_url, description, categories } = body;
       const { rows: [img] } = await query(
-        "INSERT INTO tenant_reference_images (tenant_id, type, image_url, description, categories) VALUES ($1, 'post', $2, $3, $4) RETURNING *",
-        [id, image_url, description || null, categories || []]
+        "INSERT INTO tenant_reference_images (tenant_id, type, image_url, thumb_url, description, categories) VALUES ($1, 'post', $2, $3, $4, $5) RETURNING *",
+        [id, image_url, thumb_url || null, description || null, categories || []]
       );
       return NextResponse.json({ ok: true, image: img });
     }

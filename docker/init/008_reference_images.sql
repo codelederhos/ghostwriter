@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS tenant_reference_images (
     image_url TEXT NOT NULL,
     description TEXT,
     slot_index INTEGER, -- für Persona: 0-3
+    thumb_url TEXT, -- Vorschau (400px WebP)
     categories TEXT[] DEFAULT '{}', -- für Post-Bilder: zugeordnete Kategorie-Labels
     created_at TIMESTAMP DEFAULT NOW()
 );

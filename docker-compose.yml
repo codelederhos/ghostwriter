@@ -38,8 +38,11 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - uploads:/app/public/uploads
     ports:
       - "127.0.0.1:3200:3200"
 
 volumes:
   pgdata:
+  uploads:

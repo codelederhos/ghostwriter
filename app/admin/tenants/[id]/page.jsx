@@ -137,17 +137,17 @@ export default function TenantDetailPage() {
     const res = await fetch("/api/upload", { method: "POST", body: form });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error);
-    return data.url;
+    return { url: data.url, thumb: data.thumb };
   }
 
   async function handlePersonaUpload(slotIndex, file, description) {
     setUploading(true);
     try {
-      const url = await uploadFile(file);
+      const { url, thumb } = await uploadFile(file);
       await fetch(`/api/tenants/${id}/images`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "upsert_persona", slot_index: slotIndex, image_url: url, description }),
+        body: JSON.stringify({ action: "upsert_persona", slot_index: slotIndex, image_url: url, thumb_url: thumb, description }),
       });
       loadRefImages();
     } catch (e) { setMsg(`Upload-Fehler: ${e.message}`); }
@@ -157,11 +157,11 @@ export default function TenantDetailPage() {
   async function handlePostImageUpload(file, description, categories) {
     setUploading(true);
     try {
-      const url = await uploadFile(file);
+      const { url, thumb } = await uploadFile(file);
       await fetch(`/api/tenants/${id}/images`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add_post_image", image_url: url, description, categories }),
+        body: JSON.stringify({ action: "add_post_image", image_url: url, thumb_url: thumb, description, categories }),
       });
       loadRefImages();
     } catch (e) { setMsg(`Upload-Fehler: ${e.message}`); }
@@ -1054,7 +1054,7 @@ export default function TenantDetailPage() {
           <div className="admin-card">
             <h3 className="font-semibold mb-2">Persona (Markenperson)</h3>
             <p className="text-xs text-muted-foreground mb-3">
-              4 Bilder der Markenperson für konsistente KI-Bildgenerierung. Ideal: Frontal, Seitlich, Ganzkörper, Arbeitsumfeld.
+              4 Bilder der Markenperson für konsistente KI-Bildgenerierung. Kopfbilder + Ganzkörper + Pose.
             </p>
             <div className="mb-3">
               <FormField
@@ -1068,13 +1068,13 @@ export default function TenantDetailPage() {
             <div className="grid grid-cols-4 gap-3">
               {[0, 1, 2, 3].map((slot) => {
                 const img = refImages.persona.find(i => i.slot_index === slot);
-                const labels = ["Frontal", "Seitlich", "Ganzkörper", "Arbeitsumfeld"];
+                const labels = ["Kopf frontal", "Kopf seitlich", "Ganzkörper", "Andere Pose / Arbeitsumfeld"];
                 return (
                   <div key={slot} className="relative group">
                     <p className="text-xs font-medium text-muted-foreground mb-1">{labels[slot]}</p>
                     {img ? (
                       <div className="relative">
-                        <img src={img.image_url} alt={img.description || labels[slot]} className="w-full aspect-square object-cover rounded-lg border border-border" />
+                        <img src={img.thumb_url || img.image_url} alt={img.description || labels[slot]} className="w-full aspect-square object-cover rounded-lg border border-border cursor-pointer" onClick={() => window.open(img.image_url, "_blank")} title="Klicken zum Vergrößern" />
                         <button
                           onClick={() => deleteRefImage(img.id)}
                           className="absolute top-1 right-1 dw-icon-btn-destructive bg-white/80 backdrop-blur-sm !w-6 !h-6"
@@ -1143,7 +1143,7 @@ export default function TenantDetailPage() {
                 {refImages.post.map((img) => (
                   <div key={img.id} className="rounded-lg border border-border overflow-hidden group">
                     <div className="relative">
-                      <img src={img.image_url} alt={img.description || ""} className="w-full aspect-video object-cover" />
+                      <img src={img.thumb_url || img.image_url} alt={img.description || ""} className="w-full aspect-video object-cover cursor-pointer" onClick={() => window.open(img.image_url, "_blank")} title="Klicken zum Vergrößern" />
                       <button
                         onClick={() => deleteRefImage(img.id)}
                         className="absolute top-1 right-1 dw-icon-btn-destructive bg-white/80 backdrop-blur-sm !w-6 !h-6 opacity-0 group-hover:opacity-100 transition-opacity"
