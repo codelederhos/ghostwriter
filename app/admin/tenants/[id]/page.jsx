@@ -308,7 +308,7 @@ export default function TenantDetailPage() {
 
       {/* Toast */}
       {msg && (
-        <div className={`fixed top-6 right-6 z-50 min-w-[280px] max-w-[480px] rounded-lg shadow-xl overflow-hidden animate-[slideDown_0.3s_ease-out] ${
+        <div className={`fixed top-6 right-6 z-[9999] min-w-[280px] max-w-[480px] rounded-lg shadow-xl overflow-hidden animate-[slideDown_0.3s_ease-out] ${
           msgType === "error" ? "bg-red-600" : "bg-emerald-600"
         }`}>
           <div className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-white">
