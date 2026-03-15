@@ -619,18 +619,50 @@ export default function TenantDetailPage() {
           {/* Options */}
           <div>
             <h3 className="font-semibold mb-3">Optionen</h3>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.backlinks_enabled || false}
-                onChange={(e) => setSettings({ ...settings, backlinks_enabled: e.target.checked })}
-                className="rounded border-border w-4 h-4"
-              />
-              <div>
-                <p className="text-sm font-medium">Backlinks</p>
-                <p className="text-xs text-muted-foreground">1 Backlink zu nicht-konkurrierender Firma pro Post (SEO-Boost)</p>
-              </div>
-            </label>
+            <div className="space-y-2">
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                  settings.backlinks_enabled
+                    ? "border-emerald-400 bg-emerald-50"
+                    : "border-border hover:border-muted-foreground/30"
+                }`}
+                onClick={() => setSettings({ ...settings, backlinks_enabled: true })}
+              >
+                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  settings.backlinks_enabled ? "border-emerald-500" : "border-gray-300"
+                }`}>
+                  <span className={`w-2.5 h-2.5 rounded-full transition-all ${
+                    settings.backlinks_enabled ? "bg-emerald-500 scale-100" : "bg-transparent scale-0"
+                  }`} />
+                </span>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Backlinks aktiv</p>
+                  <p className="text-xs text-muted-foreground">1 Backlink zu nicht-konkurrierender Firma pro Post (SEO-Boost)</p>
+                </div>
+                <span className="text-sm font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">+€1/Post</span>
+              </label>
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                  !settings.backlinks_enabled
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/30"
+                }`}
+                onClick={() => setSettings({ ...settings, backlinks_enabled: false })}
+              >
+                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  !settings.backlinks_enabled ? "border-primary" : "border-gray-300"
+                }`}>
+                  <span className={`w-2.5 h-2.5 rounded-full transition-all ${
+                    !settings.backlinks_enabled ? "bg-primary scale-100" : "bg-transparent scale-0"
+                  }`} />
+                </span>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Ohne Backlinks</p>
+                  <p className="text-xs text-muted-foreground">Posts ohne externen Backlink</p>
+                </div>
+                <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">€0</span>
+              </label>
+            </div>
           </div>
 
           <hr className="border-border" />
