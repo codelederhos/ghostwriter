@@ -1,6 +1,8 @@
 import { query } from "@/lib/db";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminDashboard() {
   const { rows: [stats] } = await query(`
     SELECT
