@@ -4,6 +4,14 @@ import { requireAdmin } from "@/lib/auth";
 import { encrypt } from "@/lib/crypto";
 import bcrypt from "bcryptjs";
 
+const DEFAULT_ANGLES = [
+  { key: 1, label: "Zahlenfakt / Rechenbeispiel", active: true },
+  { key: 2, label: "Kundenperspektive / Testimonial", active: true },
+  { key: 3, label: "FAQ / Frage-Antwort", active: true },
+  { key: 4, label: "Vergleich / Andere vs. Wir", active: true },
+  { key: 5, label: "Tipp / Actionable Advice", active: true },
+];
+
 export async function GET() {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -143,9 +151,9 @@ async function updateTopics({ tenantId, topics }) {
   await query("DELETE FROM tenant_topics WHERE tenant_id = $1", [tenantId]);
   for (const t of topics) {
     await query(
-      `INSERT INTO tenant_topics (tenant_id, category_id, label, description, default_cta, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [tenantId, t.category_id, t.label, t.description, t.default_cta || "LEARN_MORE", t.is_active !== false]
+      `INSERT INTO tenant_topics (tenant_id, category_id, label, description, default_cta, is_active, angles)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [tenantId, t.category_id, t.label, t.description, t.default_cta || "LEARN_MORE", t.is_active !== false, JSON.stringify(t.angles || DEFAULT_ANGLES)]
     );
   }
   return NextResponse.json({ ok: true });

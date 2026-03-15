@@ -5,6 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { Save, Play, ArrowLeft, Trash2 } from "lucide-react";
 import Link from "next/link";
 
+const DEFAULT_ANGLES = [
+  { key: 1, label: "Zahlenfakt / Rechenbeispiel", active: true },
+  { key: 2, label: "Kundenperspektive / Testimonial", active: true },
+  { key: 3, label: "FAQ / Frage-Antwort", active: true },
+  { key: 4, label: "Vergleich / Andere vs. Wir", active: true },
+  { key: 5, label: "Tipp / Actionable Advice", active: true },
+];
+
 export default function TenantDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -15,6 +23,7 @@ export default function TenantDetailPage() {
   const [tab, setTab] = useState("profile");
   const [users, setUsers] = useState([]);
   const [newUser, setNewUser] = useState({ email: "", name: "", password: "" });
+  const [expandedTopic, setExpandedTopic] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -249,53 +258,136 @@ export default function TenantDetailPage() {
       )}
 
       {/* Tab: Topics */}
-      {tab === "topics" && (
-        <div className="admin-card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Themen-Kategorien</h3>
-            <button
-              onClick={() => setTopics([...topics, { category_id: topics.length, label: "", description: "", default_cta: "LEARN_MORE", is_active: true }])}
-              className="btn-outline text-xs"
-            >
-              + Thema
-            </button>
+      {tab === "topics" && (() => {
+        const activeCategories = topics.filter(t => t.is_active !== false).length;
+        const activeAngles = topics.reduce((sum, t) => sum + ((t.angles || DEFAULT_ANGLES).filter(a => a.active !== false).length), 0);
+        const avgAngles = activeCategories > 0 ? Math.round(activeAngles / activeCategories) : 5;
+        const combos = activeCategories * avgAngles * 4;
+        const years = settings.frequency_hours ? Math.floor(combos * (settings.frequency_hours / 24) / 365 * 10) / 10 : Math.floor(combos * 3 / 365 * 10) / 10;
+
+        return (
+          <div className="admin-card">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold">Themen-Kategorien</h3>
+              <button
+                onClick={() => setTopics([...topics, { category_id: topics.length, label: "", description: "", default_cta: "LEARN_MORE", is_active: true, angles: DEFAULT_ANGLES }])}
+                className="btn-outline text-xs"
+              >
+                + Thema
+              </button>
+            </div>
+
+            {/* Coverage Info */}
+            <div className="mb-4 px-3 py-2 rounded-lg bg-muted/50 text-xs text-muted-foreground flex items-center gap-4">
+              <span><strong className="text-foreground">{activeCategories}</strong> Kategorien</span>
+              <span>×</span>
+              <span><strong className="text-foreground">{avgAngles}</strong> Angles</span>
+              <span>×</span>
+              <span><strong className="text-foreground">4</strong> Saisons</span>
+              <span>=</span>
+              <span><strong className="text-emerald-600">{combos} Kombinationen</strong></span>
+              <span className="ml-auto text-emerald-600 font-medium">~{years} Jahre ohne Wiederholung</span>
+            </div>
+
+            {/* Column Headers */}
+            <div className="grid grid-cols-12 gap-2 px-3 pb-2 border-b border-border mb-2">
+              <span className="col-span-1 text-xs font-medium text-muted-foreground">#</span>
+              <span className="col-span-3 text-xs font-medium text-muted-foreground">Kategorie</span>
+              <span className="col-span-5 text-xs font-medium text-muted-foreground">Beschreibung</span>
+              <span className="col-span-2 text-xs font-medium text-muted-foreground">CTA</span>
+              <span className="col-span-1"></span>
+            </div>
+
+            {/* Categories */}
+            <div className="space-y-1">
+              {topics.map((t, i) => (
+                <div key={i}>
+                  {/* Category Row */}
+                  <div className="grid grid-cols-12 gap-2 items-center p-2 rounded-lg hover:bg-muted/30 transition-colors">
+                    <button
+                      className="col-span-1 text-xs text-muted-foreground text-left hover:text-primary transition-colors"
+                      onClick={() => setExpandedTopic(expandedTopic === i ? null : i)}
+                      title="Angles anzeigen"
+                    >
+                      {expandedTopic === i ? "▼" : "▶"} {t.category_id}
+                    </button>
+                    <input
+                      className="col-span-3 form-input text-sm"
+                      value={t.label}
+                      onChange={(e) => { const n = [...topics]; n[i].label = e.target.value; setTopics(n); }}
+                      placeholder="Kategorie"
+                    />
+                    <input
+                      className="col-span-5 form-input text-sm"
+                      value={t.description}
+                      onChange={(e) => { const n = [...topics]; n[i].description = e.target.value; setTopics(n); }}
+                      placeholder="Beschreibung"
+                    />
+                    <select
+                      className="col-span-2 form-select text-sm"
+                      value={t.default_cta}
+                      onChange={(e) => { const n = [...topics]; n[i].default_cta = e.target.value; setTopics(n); }}
+                    >
+                      <option value="LEARN_MORE">Mehr erfahren</option>
+                      <option value="CALL">Anrufen</option>
+                    </select>
+                    <button
+                      className="col-span-1 btn-ghost text-destructive text-xs"
+                      onClick={() => setTopics(topics.filter((_, j) => j !== i))}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Expanded Angles */}
+                  {expandedTopic === i && (
+                    <div className="ml-8 mr-4 mb-3 mt-1 p-3 rounded-lg border border-border/50 bg-muted/20">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">
+                        Angles (Blickwinkel pro Post)
+                      </p>
+                      <div className="space-y-1.5">
+                        {(t.angles || DEFAULT_ANGLES).map((angle, ai) => (
+                          <div key={angle.key} className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={angle.active !== false}
+                              onChange={() => {
+                                const n = [...topics];
+                                const angles = [...(n[i].angles || DEFAULT_ANGLES)];
+                                angles[ai] = { ...angles[ai], active: !angles[ai].active };
+                                n[i].angles = angles;
+                                setTopics(n);
+                              }}
+                              className="rounded border-border"
+                            />
+                            <span className="text-xs text-muted-foreground w-4">{angle.key}</span>
+                            <input
+                              className="form-input text-sm flex-1"
+                              value={angle.label}
+                              onChange={(e) => {
+                                const n = [...topics];
+                                const angles = [...(n[i].angles || DEFAULT_ANGLES)];
+                                angles[ai] = { ...angles[ai], label: e.target.value };
+                                n[i].angles = angles;
+                                setTopics(n);
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Saison (Frühling/Sommer/Herbst/Winter) wird automatisch erkannt.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={saveTopics} className="btn-primary mt-4" disabled={saving}><Save size={14} /> Speichern</button>
           </div>
-          <div className="space-y-3">
-            {topics.map((t, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-start p-3 rounded-lg bg-muted/30">
-                <span className="col-span-1 text-xs text-muted-foreground pt-2">{t.category_id}</span>
-                <input
-                  className="col-span-3 form-input text-sm"
-                  value={t.label}
-                  onChange={(e) => { const n = [...topics]; n[i].label = e.target.value; setTopics(n); }}
-                  placeholder="Label"
-                />
-                <input
-                  className="col-span-5 form-input text-sm"
-                  value={t.description}
-                  onChange={(e) => { const n = [...topics]; n[i].description = e.target.value; setTopics(n); }}
-                  placeholder="Beschreibung"
-                />
-                <select
-                  className="col-span-2 form-select text-sm"
-                  value={t.default_cta}
-                  onChange={(e) => { const n = [...topics]; n[i].default_cta = e.target.value; setTopics(n); }}
-                >
-                  <option value="LEARN_MORE">Mehr erfahren</option>
-                  <option value="CALL">Anrufen</option>
-                </select>
-                <button
-                  className="col-span-1 btn-ghost text-destructive text-xs"
-                  onClick={() => setTopics(topics.filter((_, j) => j !== i))}
-                >
-                  X
-                </button>
-              </div>
-            ))}
-          </div>
-          <button onClick={saveTopics} className="btn-primary mt-4" disabled={saving}><Save size={14} /> Speichern</button>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Tab: Reporting */}
       {tab === "reporting" && (
