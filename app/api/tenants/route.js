@@ -135,12 +135,14 @@ async function updateProfile({ tenantId, profile }) {
       languages = COALESCE($9, languages),
       target_audience = COALESCE($10, target_audience),
       website_url = COALESCE($11, website_url),
+      ctas = COALESCE($12, ctas),
       updated_at = NOW()
     WHERE tenant_id = $1`,
     [
       tenantId,
       p.company_name, p.industry, p.region, p.usp, p.positioning,
       p.services, p.brand_voice, p.languages, p.target_audience, p.website_url,
+      p.ctas ? JSON.stringify(p.ctas) : undefined,
     ]
   );
   return NextResponse.json({ ok: true });
