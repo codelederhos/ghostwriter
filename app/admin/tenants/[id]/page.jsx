@@ -352,7 +352,13 @@ export default function TenantDetailPage() {
                   <option value="custom">Custom Endpoint</option>
                 </select>
               </div>
-              <FormField label="Modell" value={settings.text_model} onChange={(v) => setSettings({ ...settings, text_model: v })} placeholder="claude-sonnet-4-20250514" />
+              <div className="form-group">
+                <label className="form-label">Modell</label>
+                <p className="form-input bg-muted/30 text-muted-foreground cursor-default">
+                  {({ anthropic: "Claude Sonnet 4", openai: "GPT-4o", mistral: "Mistral Large" })[settings.text_provider || "anthropic"] || "Auto"}
+                </p>
+                <p className="text-[11px] text-muted-foreground/60 mt-1">Wird automatisch aktuell gehalten</p>
+              </div>
             </div>
             <FormField label="API Key" value={settings.text_api_key} onChange={(v) => setSettings({ ...settings, text_api_key: v })} placeholder="sk-..." type="password" />
             {settings.text_provider === "custom" && (
