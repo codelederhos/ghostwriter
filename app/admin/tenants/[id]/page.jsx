@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X } from "lucide-react";
 import Link from "next/link";
 
 const DEFAULT_ANGLES = [
@@ -31,8 +31,26 @@ export default function TenantDetailPage() {
   const [lastDeleteAt, setLastDeleteAt] = useState(0); // 3s-Regel Timer
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [testMode, setTestMode] = useState("random"); // "random" | "manual"
+  const [testCatIdx, setTestCatIdx] = useState(0);
+  const [testAngleIdx, setTestAngleIdx] = useState(0);
+  const [testRunning, setTestRunning] = useState(false);
+  const [modelLabels, setModelLabels] = useState({});
 
-  useEffect(() => { loadTenant(); }, [id]);
+  useEffect(() => { loadTenant(); loadModelLabels(); }, [id]);
+
+  async function loadModelLabels() {
+    try {
+      const res = await fetch("/api/admin/config");
+      const data = await res.json();
+      const labels = {};
+      for (const [k, v] of Object.entries(data.recommended_models || {})) {
+        labels[k] = `${v.label} (${v.ctx})`;
+      }
+      setModelLabels(labels);
+    } catch { /* fallback below */ }
+  }
 
   async function loadTenant() {
     const res = await fetch(`/api/tenants/${id}`);
@@ -121,15 +139,28 @@ export default function TenantDetailPage() {
     setSaving(false);
   }
 
-  async function triggerRun(preview = false) {
+  async function triggerRun(preview = false, override = null, isTest = false) {
     setMsg("Pipeline wird ausgeführt...");
     const res = await fetch("/api/autopilot/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenantId: id, preview }),
+      body: JSON.stringify({ tenantId: id, preview, override, isTest }),
     });
     const data = await res.json();
-    setMsg(data.ok ? `Fertig! ${data.results?.length || 0} Posts.` : `Fehler: ${data.error}`);
+    if (data.ok) {
+      const r = data.results?.[0];
+      setMsg(r?.error ? `Fehler: ${r.error}` : `Fertig! "${r?.title || "Post"}" erstellt (${r?.status})`);
+    } else {
+      setMsg(`Fehler: ${data.error}`);
+    }
+  }
+
+  async function runTestPost() {
+    setTestRunning(true);
+    const override = testMode === "random" ? {} : { categoryIndex: testCatIdx, angleIndex: testAngleIdx };
+    await triggerRun(true, override, true);
+    setTestRunning(false);
+    setShowTestModal(false);
   }
 
   if (!tenant) return (
@@ -176,6 +207,7 @@ export default function TenantDetailPage() {
           <p className="text-sm text-muted-foreground">/{tenant.slug}</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setShowTestModal(true)} className="btn-outline"><FlaskConical size={14} /> Test-Post</button>
           <button onClick={() => triggerRun(true)} className="btn-outline"><Play size={14} /> Vorschau</button>
           <button onClick={() => triggerRun(false)} className="btn-primary"><Play size={14} /> Jetzt posten</button>
         </div>
@@ -266,7 +298,7 @@ export default function TenantDetailPage() {
                     <option value="social">Social Media</option>
                   </select>
                   <button
-                    className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
+                    className="dw-icon-btn-destructive"
                     onClick={() => {
                       const ctas = [...(profile.ctas || [])];
                       ctas.splice(ci, 1);
@@ -304,7 +336,7 @@ export default function TenantDetailPage() {
                         placeholder={cta.type === "phone" ? "0561 123456" : cta.type === "email" ? "info@firma.de" : cta.type === "whatsapp" ? "+49..." : "https://..."}
                       />
                       <button
-                        className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
+                        className="dw-icon-btn-destructive"
                         onClick={() => {
                           const ctas = [...(profile.ctas || [])];
                           const channels = [...ctas[ci].channels];
@@ -355,9 +387,9 @@ export default function TenantDetailPage() {
               <div className="form-group">
                 <label className="form-label">Modell</label>
                 <p className="form-input bg-muted/30 text-muted-foreground cursor-default">
-                  {({ anthropic: "Claude Sonnet 4", openai: "GPT-4o", mistral: "Mistral Large" })[settings.text_provider || "anthropic"] || "Auto"}
+                  {modelLabels[settings.text_provider || "anthropic"] || "Auto"}
                 </p>
-                <p className="text-[11px] text-muted-foreground/60 mt-1">Wird automatisch aktuell gehalten</p>
+                <p className="text-[11px] text-muted-foreground/60 mt-1">Gepflegt unter Settings → Empfohlene Modelle</p>
               </div>
             </div>
             <FormField label="API Key" value={settings.text_api_key} onChange={(v) => setSettings({ ...settings, text_api_key: v })} placeholder="sk-..." type="password" />
@@ -564,7 +596,7 @@ export default function TenantDetailPage() {
                         ))}
                       </select>
                       <button
-                        className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
+                        className="dw-icon-btn-destructive"
                         onMouseEnter={() => setHoverDelete({ type: "cat", catIdx: i })}
                         onMouseLeave={() => setHoverDelete(null)}
                         onClick={() => {
@@ -636,7 +668,7 @@ export default function TenantDetailPage() {
                                   placeholder="Angle-Bezeichnung"
                                 />
                                 <button
-                                  className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
+                                  className="dw-icon-btn-destructive"
                                   onMouseEnter={() => setHoverDelete({ type: "angle", catIdx: i, angleIdx: ai })}
                                   onMouseLeave={() => setHoverDelete(null)}
                                   onClick={() => {
@@ -742,7 +774,7 @@ export default function TenantDetailPage() {
                       <p className="font-medium text-sm">{u.email}</p>
                       <p className="text-xs text-muted-foreground">{u.name || "Kein Name"} &middot; Erstellt: {new Date(u.created_at).toLocaleDateString("de")}</p>
                     </div>
-                    <button onClick={() => deleteCustomerUser(u.id)} className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200">
+                    <button onClick={() => deleteCustomerUser(u.id)} className="dw-icon-btn-destructive">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -751,6 +783,88 @@ export default function TenantDetailPage() {
             ) : (
               <p className="text-sm text-muted-foreground">Noch keine Kundenzugänge angelegt.</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Test-Post Modal */}
+      {showTestModal && (
+        <div className="dw-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowTestModal(false); }}>
+          <div className="dw-modal" style={{ width: "min(480px, 90vw)", position: "relative" }}>
+            <button className="dw-icon-btn" onClick={() => setShowTestModal(false)} style={{ position: "absolute", top: 12, right: 12 }}>
+              <X size={16} />
+            </button>
+            <div className="p-5">
+              <h2 className="text-lg font-semibold mb-1">Test-Post erstellen</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Test-Posts werden als Draft gespeichert und zählen nicht für die Duplikat-Vermeidung.
+              </p>
+
+              {/* Mode Toggle */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                    testMode === "random" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                  }`}
+                  onClick={() => setTestMode("random")}
+                >
+                  <Shuffle size={14} /> Zufällig
+                </button>
+                <button
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    testMode === "manual" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                  }`}
+                  onClick={() => setTestMode("manual")}
+                >
+                  Manuell wählen
+                </button>
+              </div>
+
+              {testMode === "manual" && (
+                <div className="space-y-3 mb-4">
+                  <div className="form-group">
+                    <label className="form-label">Kategorie</label>
+                    <select
+                      className="form-select"
+                      value={testCatIdx}
+                      onChange={(e) => { setTestCatIdx(parseInt(e.target.value)); setTestAngleIdx(0); }}
+                    >
+                      {topics.filter(t => t.is_active !== false).map((t, i) => (
+                        <option key={i} value={i}>{t.label || `Kategorie ${i}`}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Angle</label>
+                    <select className="form-select" value={testAngleIdx} onChange={(e) => setTestAngleIdx(parseInt(e.target.value))}>
+                      {(topics.filter(t => t.is_active !== false)[testCatIdx]?.angles || DEFAULT_ANGLES)
+                        .filter(a => a.active !== false)
+                        .map((a, i) => (
+                          <option key={i} value={i}>{a.label}</option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={runTestPost}
+                disabled={testRunning}
+                className="btn-primary w-full"
+              >
+                {testRunning ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Wird generiert...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <FlaskConical size={14} />
+                    {testMode === "random" ? "Zufälligen Test-Post erstellen" : "Test-Post erstellen"}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

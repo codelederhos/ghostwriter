@@ -1,16 +1,98 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Save } from "lucide-react";
 
 export default function SettingsPage() {
   const [msg, setMsg] = useState(null);
+  const [models, setModels] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { loadConfig(); }, []);
+
+  async function loadConfig() {
+    try {
+      const res = await fetch("/api/admin/config");
+      const data = await res.json();
+      setModels(data.recommended_models || {
+        anthropic: { model: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", ctx: "200k" },
+        openai: { model: "gpt-4.1-mini", label: "GPT-4.1 Mini", ctx: "1M" },
+        mistral: { model: "mistral-large-latest", label: "Mistral Large", ctx: "128k" },
+      });
+    } catch {
+      setModels({
+        anthropic: { model: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", ctx: "200k" },
+        openai: { model: "gpt-4.1-mini", label: "GPT-4.1 Mini", ctx: "1M" },
+        mistral: { model: "mistral-large-latest", label: "Mistral Large", ctx: "128k" },
+      });
+    }
+  }
+
+  async function saveModels() {
+    setSaving(true);
+    const res = await fetch("/api/admin/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "recommended_models", value: models }),
+    });
+    const data = await res.json();
+    setMsg(data.ok ? "Modelle gespeichert" : `Fehler: ${data.error}`);
+    setSaving(false);
+    setTimeout(() => setMsg(null), 3000);
+  }
+
+  const updateModel = (provider, field, value) => {
+    setModels({ ...models, [provider]: { ...models[provider], [field]: value } });
+  };
 
   return (
     <div>
       <h1 className="admin-title">Settings</h1>
 
       <div className="space-y-6">
+        {/* Empfohlene Modelle */}
+        <div className="admin-card">
+          <h2 className="text-lg font-semibold mb-2">Empfohlene Modelle</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Diese Modelle werden für alle Tenants verwendet. Kunden sehen nur Provider + API Key.
+          </p>
+          {models && (
+            <div className="space-y-3">
+              {[
+                { key: "anthropic", label: "Anthropic" },
+                { key: "openai", label: "OpenAI" },
+                { key: "mistral", label: "Mistral" },
+              ].map(({ key, label }) => (
+                <div key={key} className="grid grid-cols-[120px_1fr_140px_80px] gap-3 items-center">
+                  <span className="text-sm font-medium">{label}</span>
+                  <input
+                    className="form-input text-sm"
+                    value={models[key]?.model || ""}
+                    onChange={(e) => updateModel(key, "model", e.target.value)}
+                    placeholder="model-id"
+                  />
+                  <input
+                    className="form-input text-sm"
+                    value={models[key]?.label || ""}
+                    onChange={(e) => updateModel(key, "label", e.target.value)}
+                    placeholder="Anzeigename"
+                  />
+                  <input
+                    className="form-input text-sm text-center"
+                    value={models[key]?.ctx || ""}
+                    onChange={(e) => updateModel(key, "ctx", e.target.value)}
+                    placeholder="Ctx"
+                  />
+                </div>
+              ))}
+              <button onClick={saveModels} className="btn-primary mt-2" disabled={saving}>
+                <Save size={14} /> Speichern
+              </button>
+            </div>
+          )}
+          {msg && <p className="text-sm mt-3 text-emerald-600">{msg}</p>}
+        </div>
+
         {/* Global Scheduler */}
         <div className="admin-card">
           <h2 className="text-lg font-semibold mb-4">Scheduler</h2>
@@ -64,7 +146,6 @@ export default function SettingsPage() {
           >
             Scheduler zurücksetzen
           </button>
-          {msg && <p className="text-sm mt-3 text-muted-foreground">{msg}</p>}
         </div>
       </div>
     </div>

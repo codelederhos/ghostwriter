@@ -197,6 +197,17 @@ body {
   }
   .dw-icon-btn:hover { @apply bg-muted text-foreground; }
   .dw-icon-btn.active { @apply bg-primary/10 text-primary border-primary/20; }
+  .dw-icon-btn-destructive {
+    width: 28px; height: 28px; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid transparent;
+    @apply text-muted-foreground/40;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .dw-icon-btn-destructive:hover {
+    @apply bg-red-50 text-red-600 border-red-200;
+    transform: scale(1.1);
+  }
 
   /* Legend */
   .dw-legend { display: flex; gap: 16px; font-size: 12px; @apply text-muted-foreground; margin-bottom: 8px; }
