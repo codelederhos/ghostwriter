@@ -308,15 +308,16 @@ export default function TenantDetailPage() {
 
       {/* Toast */}
       {msg && (
-        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all animate-[slideUp_0.3s_ease-out] ${
-          msgType === "error"
-            ? "bg-red-600 text-white"
-            : "bg-emerald-600 text-white"
+        <div className={`fixed top-6 right-6 z-50 min-w-[280px] max-w-[480px] rounded-lg shadow-xl overflow-hidden animate-[slideDown_0.3s_ease-out] ${
+          msgType === "error" ? "bg-red-600" : "bg-emerald-600"
         }`}>
-          <div className="flex items-center gap-2">
-            <span>{msg}</span>
-            <button onClick={() => setMsg("")} className="text-white/60 hover:text-white ml-2">&times;</button>
+          <div className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-white">
+            <span className="flex-1">{msg}</span>
+            <button onClick={() => setMsg("")} className="text-white/50 hover:text-white text-lg leading-none">&times;</button>
           </div>
+          <div className={`h-[3px] ${msgType === "error" ? "bg-red-300" : "bg-emerald-300"}`}
+            style={{ animation: `toastTimer ${msgType === "error" ? "8s" : "4s"} linear forwards` }}
+          />
         </div>
       )}
 
