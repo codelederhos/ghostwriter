@@ -156,8 +156,8 @@ export default function TenantDetailPage() {
 
   const tabs = [
     { key: "profile", label: "Firmenprofil" },
-    { key: "ctas", label: "CTAs" },
     { key: "settings", label: "API & Provider" },
+    { key: "ctas", label: "CTAs" },
     { key: "topics", label: "Themen" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
