@@ -63,10 +63,10 @@ const RANGES = [
 ];
 
 const CARDS = [
-  { key: "tenants",   label: "Tenants",         icon: Users,        gradId: "gBlue",   colors: ["#5ce1e6", "#9ff3f6"], href: "/admin/tenants" },
-  { key: "published", label: "Veröffentlicht",  icon: FileText,     gradId: "gGreen",  colors: ["#34d399", "#6ee7b7"], series: "published" },
-  { key: "failed",    label: "Fehlgeschlagen",   icon: AlertCircle,  gradId: "gRed",    colors: ["#ff6262", "#fca5a5"], series: "failed" },
-  { key: "total",     label: "Gesamt Posts",     icon: TrendingUp,   gradId: "gOrange", colors: ["#fbbf24", "#fcd34d"], series: "total" },
+  { key: "tenants",   label: "Tenants",         icon: Users,        gradId: "gBlue",   colors: ["#2563eb", "#60a5fa"], href: "/admin/tenants" },
+  { key: "published", label: "Veröffentlicht",  icon: FileText,     gradId: "gGreen",  colors: ["#059669", "#34d399"], series: "published" },
+  { key: "failed",    label: "Fehlgeschlagen",   icon: AlertCircle,  gradId: "gRed",    colors: ["#dc2626", "#f87171"], series: "failed" },
+  { key: "total",     label: "Gesamt Posts",     icon: TrendingUp,   gradId: "gAmber",  colors: ["#d97706", "#fbbf24"], series: "total" },
 ];
 
 /* ── Main Component ──────────────────────────────────── */
@@ -223,6 +223,7 @@ export default function AdminDashboard() {
         <div className="dw-card">
           <div className="dw-card-header">
             <h2><Activity size={16} /> Letzte Posts</h2>
+            <span className="dw-sub-label">{range === "7d" ? "7 Tage" : range === "30d" ? "30 Tage" : "1 Jahr"}</span>
           </div>
           <div className="dw-list">
             {data.recentPosts.map(p => (
@@ -354,7 +355,7 @@ function ChartModal({ modal, data, range, chartMode, animKey, onSwitchMode, onCl
                 {prevSeries.length > 0 && (
                   <polyline
                     points={prevSeries.map((v, i) => `${i * 40},${180 - (v / maxValue) * 170}`).join(" ")}
-                    fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeDasharray="6 4"
+                    fill="none" stroke="rgba(0,0,0,0.12)" strokeWidth="2" strokeDasharray="6 4"
                   />
                 )}
                 <polyline
@@ -376,7 +377,7 @@ function ChartModal({ modal, data, range, chartMode, animKey, onSwitchMode, onCl
             }}>
               {delta.label}
             </span>
-            <span style={{ color: "#a9afc1" }}>vs. {fmtNum(prevTotal)} im Vorzeitraum</span>
+            <span className="text-muted-foreground">vs. {fmtNum(prevTotal)} im Vorzeitraum</span>
           </div>
         </div>
       </div>
