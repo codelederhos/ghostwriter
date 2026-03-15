@@ -527,11 +527,16 @@ export default function TenantDetailPage() {
                   {billingData.openPosts.map((p) => (
                     <div key={p.id} className="flex items-center justify-between py-2 px-2 rounded hover:bg-amber-50/50">
                       <div>
-                        <p className="text-sm font-medium">{p.blog_title}</p>
+                        <p className="text-sm font-medium">
+                          {p.blog_title}
+                          {p.is_test && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">Test</span>}
+                        </p>
                         <p className="text-xs text-muted-foreground">{p.category} · {p.angle} · {new Date(p.created_at).toLocaleDateString("de")}</p>
                       </div>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                        {((billingData.pricing?.post_price_cents || 300) / 100).toFixed(2)} €
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        p.is_test ? "bg-violet-100 text-violet-700" : "bg-amber-100 text-amber-700"
+                      }`}>
+                        {((p.calculated_price || billingData.pricing?.post_price_cents || 300) / 100).toFixed(2)} €
                       </span>
                     </div>
                   ))}
@@ -1455,8 +1460,14 @@ export default function TenantDetailPage() {
                     Status: {testResult.status} · Sprache: {testResult.language}
                   </p>
                   <div className="flex gap-2 mt-2">
+                    <a
+                      href={`/${tenant.slug}/${testResult.language}/blog/${testResult.slug}`}
+                      target="_blank"
+                      className="btn-primary text-xs"
+                    >
+                      Anschauen
+                    </a>
                     <button onClick={() => { setShowTestModal(false); setTestStep(0); setTestResult(null); }} className="btn-outline text-xs">Schließen</button>
-                    <button onClick={() => { setShowTestModal(false); setTestStep(0); setTestResult(null); setTab("topics"); }} className="btn-outline text-xs">Zu Themen</button>
                   </div>
                 </div>
               )}
@@ -1481,40 +1492,88 @@ export default function TenantDetailPage() {
       )}
 
       {/* Tab: Scheduling */}
-      {tab === "scheduling" && (
-        <div className="admin-card space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="form-group">
-              <label className="form-label">Frequenz (Stunden)</label>
+      {tab === "scheduling" && (() => {
+        const days = Math.round((settings.frequency_hours || 72) / 24);
+        return (
+          <div className="admin-card space-y-6">
+            {/* Frequenz Slider */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="form-label mb-0">Frequenz</label>
+                <span className="text-sm font-semibold text-primary">Alle {days} {days === 1 ? "Tag" : "Tage"}</span>
+              </div>
               <input
-                type="number"
-                className="form-input"
-                value={settings.frequency_hours || 72}
-                onChange={(e) => setSettings({ ...settings, frequency_hours: parseInt(e.target.value) })}
-                min={1}
+                type="range"
+                min={1} max={30} step={1}
+                value={days}
+                onChange={(e) => setSettings({ ...settings, frequency_hours: parseInt(e.target.value) * 24 })}
+                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
               />
-              <p className="text-xs text-muted-foreground mt-1">72 = alle 3 Tage</p>
+              <div className="flex justify-between text-[10px] text-muted-foreground/50 mt-1">
+                <span>Täglich</span>
+                <span>Wöchentlich</span>
+                <span>Monatlich</span>
+              </div>
             </div>
-            <div className="form-group">
-              <label className="form-label">Autopilot aktiv</label>
-              <select
-                className="form-select"
-                value={settings.is_active ? "true" : "false"}
-                onChange={(e) => setSettings({ ...settings, is_active: e.target.value === "true" })}
-              >
-                <option value="true">Aktiv</option>
-                <option value="false">Pausiert</option>
-              </select>
+
+            <hr className="border-border" />
+
+            {/* Autopilot Radio */}
+            <div>
+              <label className="form-label">Autopilot</label>
+              <div className="space-y-2">
+                <label
+                  className={`radio-option flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer ${
+                    settings.is_active
+                      ? "radio-option-active border-emerald-400 bg-emerald-50"
+                      : "border-border"
+                  }`}
+                  onClick={() => setSettings({ ...settings, is_active: true })}
+                >
+                  <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    settings.is_active ? "border-emerald-500" : "border-gray-300"
+                  }`}>
+                    <span className={`w-2.5 h-2.5 rounded-full transition-all ${
+                      settings.is_active ? "bg-emerald-500 scale-100" : "bg-transparent scale-0"
+                    }`} />
+                  </span>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Aktiv</p>
+                    <p className="text-xs text-muted-foreground">Posts werden automatisch generiert und veröffentlicht</p>
+                  </div>
+                </label>
+                <label
+                  className={`radio-option flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer ${
+                    !settings.is_active
+                      ? "radio-option-active-alt border-amber-400 bg-amber-50"
+                      : "border-border"
+                  }`}
+                  onClick={() => setSettings({ ...settings, is_active: false })}
+                >
+                  <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    !settings.is_active ? "border-amber-500" : "border-gray-300"
+                  }`}>
+                    <span className={`w-2.5 h-2.5 rounded-full transition-all ${
+                      !settings.is_active ? "bg-amber-500 scale-100" : "bg-transparent scale-0"
+                    }`} />
+                  </span>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Pausiert</p>
+                    <p className="text-xs text-muted-foreground">Keine automatischen Posts, nur manuell oder Test</p>
+                  </div>
+                </label>
+              </div>
             </div>
+
+            {settings.next_run_at && (
+              <p className="text-sm text-muted-foreground">
+                Nächster Run: {new Date(settings.next_run_at).toLocaleString("de")}
+              </p>
+            )}
+            <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
           </div>
-          {settings.next_run_at && (
-            <p className="text-sm text-muted-foreground">
-              Nächster Run: {new Date(settings.next_run_at).toLocaleString("de")}
-            </p>
-          )}
-          <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

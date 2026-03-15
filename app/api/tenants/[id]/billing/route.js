@@ -25,16 +25,24 @@ export async function GET(req, { params }) {
   const sinceDate = lastInvoiced ? lastInvoiced.period_end : "2020-01-01";
 
   const { rows: openPosts } = await query(
-    `SELECT id, blog_title, category, angle, billing_mode, cost_cents, created_at
+    `SELECT id, blog_title, category, angle, billing_mode, is_test, cost_cents, created_at
      FROM ghostwriter_posts
-     WHERE tenant_id = $1 AND is_test = false AND status != 'failed'
+     WHERE tenant_id = $1 AND status != 'failed'
        AND billing_mode = 'platform' AND created_at > $2
      ORDER BY created_at DESC`,
     [id, sinceDate]
   );
 
-  // Summary
-  const openTotal = openPosts.length * pricing.post_price_cents;
+  // Summary mit Test-Rabatt
+  const testDiscount = (pricing.test_discount_percent ?? 60) / 100;
+  let openTotal = 0;
+  for (const p of openPosts) {
+    const price = p.is_test
+      ? Math.round(pricing.post_price_cents * (1 - testDiscount))
+      : pricing.post_price_cents;
+    p.calculated_price = price;
+    openTotal += price;
+  }
 
   return NextResponse.json({ pricing, periods, openPosts, openTotal });
 }
