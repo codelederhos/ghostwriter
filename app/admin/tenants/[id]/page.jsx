@@ -801,15 +801,40 @@ export default function TenantDetailPage() {
 
       {/* Tab: Reporting */}
       {tab === "reporting" && (
-        <div className="admin-card space-y-4">
-          <h3 className="font-semibold">Telegram</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Bot Token" value={settings.telegram_bot_token} onChange={(v) => setSettings({ ...settings, telegram_bot_token: v })} type="password" />
-            <FormField label="Chat ID" value={settings.telegram_chat_id} onChange={(v) => setSettings({ ...settings, telegram_chat_id: v })} />
+        <div className="admin-card space-y-5">
+          {/* Telegram */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">Telegram</h3>
+              <ToggleSwitch
+                checked={settings.telegram_enabled || false}
+                onChange={(v) => setSettings({ ...settings, telegram_enabled: v })}
+              />
+            </div>
+            <div className={`transition-all duration-300 overflow-hidden ${settings.telegram_enabled ? "max-h-40 opacity-100" : "max-h-0 opacity-0"}`}>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Bot Token" value={settings.telegram_bot_token} onChange={(v) => setSettings({ ...settings, telegram_bot_token: v })} type="password" />
+                <FormField label="Chat ID" value={settings.telegram_chat_id} onChange={(v) => setSettings({ ...settings, telegram_chat_id: v })} />
+              </div>
+            </div>
           </div>
+
           <hr className="border-border" />
-          <h3 className="font-semibold">E-Mail</h3>
-          <FormField label="Report E-Mail" value={settings.report_email} onChange={(v) => setSettings({ ...settings, report_email: v })} placeholder="info@beispiel.de" />
+
+          {/* E-Mail */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">E-Mail</h3>
+              <ToggleSwitch
+                checked={settings.email_enabled || false}
+                onChange={(v) => setSettings({ ...settings, email_enabled: v })}
+              />
+            </div>
+            <div className={`transition-all duration-300 overflow-hidden ${settings.email_enabled ? "max-h-40 opacity-100" : "max-h-0 opacity-0"}`}>
+              <FormField label="Report E-Mail" value={settings.report_email} onChange={(v) => setSettings({ ...settings, report_email: v })} placeholder="info@beispiel.de" />
+            </div>
+          </div>
+
           <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
         </div>
       )}
@@ -970,6 +995,26 @@ export default function TenantDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function ToggleSwitch({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none ${
+        checked ? "bg-emerald-500" : "bg-gray-300"
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${
+          checked ? "translate-x-6" : "translate-x-1"
+        }`}
+      />
+    </button>
   );
 }
 

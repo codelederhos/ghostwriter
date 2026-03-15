@@ -109,6 +109,8 @@ async function updateSettings({ tenantId, settings }) {
       is_active = COALESCE($13, is_active),
       billing_mode = COALESCE($14, billing_mode),
       backlinks_enabled = COALESCE($15, backlinks_enabled),
+      telegram_enabled = COALESCE($16, telegram_enabled),
+      email_enabled = COALESCE($17, email_enabled),
       updated_at = NOW()
     WHERE tenant_id = $1`,
     [
@@ -118,6 +120,7 @@ async function updateSettings({ tenantId, settings }) {
       merged.telegram_bot_token, merged.telegram_chat_id, merged.report_email,
       merged.frequency_hours, merged.is_active,
       merged.billing_mode, merged.backlinks_enabled,
+      merged.telegram_enabled, merged.email_enabled,
     ]
   );
 
