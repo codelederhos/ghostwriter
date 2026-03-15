@@ -164,11 +164,10 @@ export default function TenantsPage() {
             <p className="text-muted-foreground">Noch keine Tenants vorhanden.</p>
           </div>
         ) : tenants.map((t) => (
-          <div key={t.id} className="admin-card flex items-center justify-between">
+          <div key={t.id} className="admin-card flex items-center justify-between hover:border-primary/25 hover:shadow-md transition-all cursor-pointer"
+            onClick={() => window.location.href = `/admin/tenants/${t.id}`}>
             <div>
-              <Link href={`/admin/tenants/${t.id}`} className="font-semibold text-foreground hover:text-primary">
-                {t.name}
-              </Link>
+              <p className="font-semibold text-foreground">{t.name}</p>
               <p className="text-xs text-muted-foreground">
                 /{t.slug} &middot; {t.domain || "Keine Domain"} &middot; {(t.languages || ["de"]).join(", ").toUpperCase()}
               </p>
