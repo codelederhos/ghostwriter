@@ -156,6 +156,7 @@ export default function TenantDetailPage() {
 
   const tabs = [
     { key: "profile", label: "Firmenprofil" },
+    { key: "ctas", label: "CTAs" },
     { key: "settings", label: "API & Provider" },
     { key: "topics", label: "Themen" },
     { key: "reporting", label: "Reporting" },
@@ -212,126 +213,127 @@ export default function TenantDetailPage() {
           <FormField label="Brand Voice" value={profile.brand_voice} onChange={(v) => setProfile({ ...profile, brand_voice: v })} placeholder="professionell, nahbar" />
           <FormField label="Zielgruppe" value={profile.target_audience} onChange={(v) => setProfile({ ...profile, target_audience: v })} textarea />
           <FormField label="Sprachen (kommagetrennt)" value={(profile.languages || []).join(", ")} onChange={(v) => setProfile({ ...profile, languages: v.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) })} placeholder="de, en, fr" />
-
-          {/* CTA-Kanäle */}
-          <div className="mt-6 pt-6 border-t border-border">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold">Call-to-Actions (CTAs)</h3>
-              <button
-                onClick={() => {
-                  const ctas = [...(profile.ctas || [])];
-                  ctas.push({ key: `CTA_${Date.now()}`, label: "", type: "link", channels: [{ type: "url", label: "", value: "" }] });
-                  setProfile({ ...profile, ctas });
-                }}
-                className="btn-outline text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50 hover:border-emerald-400"
-              >
-                <Plus size={12} /> CTA
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Definiere die verfügbaren CTAs für diesen Kunden. Diese werden in den Themen-Kategorien als Auswahl angezeigt.
-            </p>
-            <div className="space-y-3">
-              {(profile.ctas || []).map((cta, ci) => (
-                <div key={ci} className="p-3 rounded-lg border border-border/50 bg-muted/10">
-                  <div className="grid grid-cols-[1fr_140px_28px] gap-2 items-center mb-2">
-                    <input
-                      className="form-input text-sm"
-                      value={cta.label}
-                      onChange={(e) => {
-                        const ctas = [...(profile.ctas || [])];
-                        ctas[ci] = { ...ctas[ci], label: e.target.value, key: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "_") || ctas[ci].key };
-                        setProfile({ ...profile, ctas });
-                      }}
-                      placeholder="CTA-Name (z.B. Anrufen)"
-                    />
-                    <select
-                      className="form-select text-sm"
-                      value={cta.type}
-                      onChange={(e) => {
-                        const ctas = [...(profile.ctas || [])];
-                        ctas[ci] = { ...ctas[ci], type: e.target.value };
-                        setProfile({ ...profile, ctas });
-                      }}
-                    >
-                      <option value="phone">Telefon</option>
-                      <option value="email">E-Mail</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="link">Link/Website</option>
-                      <option value="social">Social Media</option>
-                    </select>
-                    <button
-                      className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
-                      onClick={() => {
-                        const ctas = [...(profile.ctas || [])];
-                        ctas.splice(ci, 1);
-                        setProfile({ ...profile, ctas });
-                      }}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                  {/* Channels */}
-                  <div className="space-y-1.5 ml-2">
-                    {(cta.channels || []).map((ch, chi) => (
-                      <div key={chi} className="grid grid-cols-[100px_1fr_28px] gap-2 items-center">
-                        <input
-                          className="form-input text-xs"
-                          value={ch.label}
-                          onChange={(e) => {
-                            const ctas = [...(profile.ctas || [])];
-                            const channels = [...ctas[ci].channels];
-                            channels[chi] = { ...channels[chi], label: e.target.value };
-                            ctas[ci] = { ...ctas[ci], channels };
-                            setProfile({ ...profile, ctas });
-                          }}
-                          placeholder="Bezeichnung"
-                        />
-                        <input
-                          className="form-input text-xs"
-                          value={ch.value}
-                          onChange={(e) => {
-                            const ctas = [...(profile.ctas || [])];
-                            const channels = [...ctas[ci].channels];
-                            channels[chi] = { ...channels[chi], value: e.target.value };
-                            ctas[ci] = { ...ctas[ci], channels };
-                            setProfile({ ...profile, ctas });
-                          }}
-                          placeholder={cta.type === "phone" ? "0561 123456" : cta.type === "email" ? "info@firma.de" : cta.type === "whatsapp" ? "+49..." : "https://..."}
-                        />
-                        <button
-                          className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
-                          onClick={() => {
-                            const ctas = [...(profile.ctas || [])];
-                            const channels = [...ctas[ci].channels];
-                            channels.splice(chi, 1);
-                            ctas[ci] = { ...ctas[ci], channels };
-                            setProfile({ ...profile, ctas });
-                          }}
-                        >
-                          <Trash2 size={10} />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => {
-                        const ctas = [...(profile.ctas || [])];
-                        const channels = [...(ctas[ci].channels || [])];
-                        channels.push({ type: cta.type, label: "", value: "" });
-                        ctas[ci] = { ...ctas[ci], channels };
-                        setProfile({ ...profile, ctas });
-                      }}
-                      className="text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-1 mt-1"
-                    >
-                      <Plus size={10} /> Kanal hinzufügen
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <button onClick={saveProfile} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
+        </div>
+      )}
+
+      {/* Tab: CTAs */}
+      {tab === "ctas" && (
+        <div className="admin-card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Call-to-Actions</h3>
+            <button
+              onClick={() => {
+                const ctas = [...(profile.ctas || [])];
+                ctas.push({ key: `CTA_${Date.now()}`, label: "", type: "link", channels: [{ type: "url", label: "", value: "" }] });
+                setProfile({ ...profile, ctas });
+              }}
+              className="btn-outline text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50 hover:border-emerald-400"
+            >
+              <Plus size={12} /> CTA
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Definiere die verfügbaren CTAs für diesen Kunden. Diese werden in den Themen-Kategorien als Auswahl angezeigt.
+          </p>
+          <div className="space-y-3">
+            {(profile.ctas || []).map((cta, ci) => (
+              <div key={ci} className="p-3 rounded-lg border border-border/50 bg-muted/10">
+                <div className="grid grid-cols-[1fr_140px_28px] gap-2 items-center mb-2">
+                  <input
+                    className="form-input text-sm"
+                    value={cta.label}
+                    onChange={(e) => {
+                      const ctas = [...(profile.ctas || [])];
+                      ctas[ci] = { ...ctas[ci], label: e.target.value, key: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "_") || ctas[ci].key };
+                      setProfile({ ...profile, ctas });
+                    }}
+                    placeholder="CTA-Name (z.B. Anrufen)"
+                  />
+                  <select
+                    className="form-select text-sm"
+                    value={cta.type}
+                    onChange={(e) => {
+                      const ctas = [...(profile.ctas || [])];
+                      ctas[ci] = { ...ctas[ci], type: e.target.value };
+                      setProfile({ ...profile, ctas });
+                    }}
+                  >
+                    <option value="phone">Telefon</option>
+                    <option value="email">E-Mail</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="link">Link/Website</option>
+                    <option value="social">Social Media</option>
+                  </select>
+                  <button
+                    className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
+                    onClick={() => {
+                      const ctas = [...(profile.ctas || [])];
+                      ctas.splice(ci, 1);
+                      setProfile({ ...profile, ctas });
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+                <div className="space-y-1.5 ml-2">
+                  {(cta.channels || []).map((ch, chi) => (
+                    <div key={chi} className="grid grid-cols-[100px_1fr_28px] gap-2 items-center">
+                      <input
+                        className="form-input text-xs"
+                        value={ch.label}
+                        onChange={(e) => {
+                          const ctas = [...(profile.ctas || [])];
+                          const channels = [...ctas[ci].channels];
+                          channels[chi] = { ...channels[chi], label: e.target.value };
+                          ctas[ci] = { ...ctas[ci], channels };
+                          setProfile({ ...profile, ctas });
+                        }}
+                        placeholder="Bezeichnung"
+                      />
+                      <input
+                        className="form-input text-xs"
+                        value={ch.value}
+                        onChange={(e) => {
+                          const ctas = [...(profile.ctas || [])];
+                          const channels = [...ctas[ci].channels];
+                          channels[chi] = { ...channels[chi], value: e.target.value };
+                          ctas[ci] = { ...ctas[ci], channels };
+                          setProfile({ ...profile, ctas });
+                        }}
+                        placeholder={cta.type === "phone" ? "0561 123456" : cta.type === "email" ? "info@firma.de" : cta.type === "whatsapp" ? "+49..." : "https://..."}
+                      />
+                      <button
+                        className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
+                        onClick={() => {
+                          const ctas = [...(profile.ctas || [])];
+                          const channels = [...ctas[ci].channels];
+                          channels.splice(chi, 1);
+                          ctas[ci] = { ...ctas[ci], channels };
+                          setProfile({ ...profile, ctas });
+                        }}
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const ctas = [...(profile.ctas || [])];
+                      const channels = [...(ctas[ci].channels || [])];
+                      channels.push({ type: cta.type, label: "", value: "" });
+                      ctas[ci] = { ...ctas[ci], channels };
+                      setProfile({ ...profile, ctas });
+                    }}
+                    className="text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-1 mt-1"
+                  >
+                    <Plus size={10} /> Kanal hinzufügen
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button onClick={saveProfile} className="btn-primary mt-4" disabled={saving}><Save size={14} /> Speichern</button>
         </div>
       )}
 
