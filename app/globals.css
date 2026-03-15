@@ -226,6 +226,37 @@ body {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
   }
 
+  /* AI/Tech Gradient Button */
+  .btn-ai {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1, #a855f7);
+    background-size: 200% 200%;
+    animation: aiShimmer 3s ease-in-out infinite;
+    color: white; border: none; border-radius: 8px;
+    padding: 8px 16px; font-weight: 500; font-size: 14px;
+    cursor: pointer; transition: all 0.3s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-ai:hover {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.35);
+    transform: translateY(-1px);
+  }
+  .btn-ai:disabled { opacity: 0.7; cursor: wait; }
+  .btn-ai-outline {
+    background: transparent;
+    border: 1.5px solid transparent;
+    background-image: linear-gradient(white, white), linear-gradient(135deg, #8b5cf6, #6366f1, #a855f7);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    color: #7c3aed; border-radius: 8px;
+    padding: 6px 14px; font-weight: 500; font-size: 13px;
+    cursor: pointer; transition: all 0.3s;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .btn-ai-outline:hover {
+    background-image: linear-gradient(#f5f3ff, #f5f3ff), linear-gradient(135deg, #8b5cf6, #6366f1, #a855f7);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
+  }
+
   /* Legend */
   .dw-legend { display: flex; gap: 16px; font-size: 12px; @apply text-muted-foreground; margin-bottom: 8px; }
   .dw-legend-dot {
@@ -277,6 +308,10 @@ body {
 }
 
 /* Dashboard Animations (outside @layer to work with keyframes) */
+@keyframes aiShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
 @keyframes radioGlow {
   0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3); }
   50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.1); }

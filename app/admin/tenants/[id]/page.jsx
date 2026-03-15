@@ -289,7 +289,7 @@ export default function TenantDetailPage() {
           <p className="text-sm text-muted-foreground">/{tenant.slug}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowTestModal(true)} className="btn-outline"><FlaskConical size={14} /> Test-Post</button>
+          <button onClick={() => setShowTestModal(true)} className="btn-ai-outline"><FlaskConical size={14} /> Test-Post</button>
           <button onClick={() => triggerRun(true)} className="btn-outline"><Play size={14} /> Vorschau</button>
           <button onClick={() => triggerRun(false)} className="btn-primary"><Play size={14} /> Jetzt posten</button>
         </div>
@@ -1366,7 +1366,7 @@ export default function TenantDetailPage() {
               <button
                 onClick={runTestPost}
                 disabled={testRunning}
-                className="btn-primary w-full"
+                className="btn-ai w-full justify-center"
               >
                 {testRunning ? (
                   <span className="flex items-center gap-2">
