@@ -26,6 +26,9 @@ export default function TenantDetailPage() {
   const [expandedTopic, setExpandedTopic] = useState(null);
   const [dragItem, setDragItem] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
+  const [hoverDelete, setHoverDelete] = useState(null); // { type: "cat"|"angle", catIdx, angleIdx? }
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { type, catIdx, angleIdx?, label }
+  const [lastDeleteAt, setLastDeleteAt] = useState(0); // 3s-Regel Timer
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -392,9 +395,11 @@ export default function TenantDetailPage() {
                     {/* Category Row */}
                     <div
                       className={`grid grid-cols-[24px_24px_1fr_2fr_120px_28px] gap-2 items-center px-2 py-2.5 rounded-lg transition-all ${
-                        isDragOverCat
-                          ? "bg-emerald-50 ring-2 ring-emerald-400 ring-inset"
-                          : dragItem?.type === "cat" && dragItem.catIdx === i ? "opacity-40" : "hover:bg-muted/30"
+                        hoverDelete?.type === "cat" && hoverDelete.catIdx === i
+                          ? "bg-red-50 ring-1 ring-red-200"
+                          : isDragOverCat
+                            ? "bg-emerald-50 ring-2 ring-emerald-400 ring-inset"
+                            : dragItem?.type === "cat" && dragItem.catIdx === i ? "opacity-40" : "hover:bg-muted/30"
                       }`}
                       draggable
                       onDragStart={() => handleCatDragStart(i)}
@@ -431,8 +436,18 @@ export default function TenantDetailPage() {
                         <option value="CALL">Anrufen</option>
                       </select>
                       <button
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                        onClick={() => { setTopics(topics.filter((_, j) => j !== i)); if (isExpanded) setExpandedTopic(null); }}
+                        className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
+                        onMouseEnter={() => setHoverDelete({ type: "cat", catIdx: i })}
+                        onMouseLeave={() => setHoverDelete(null)}
+                        onClick={() => {
+                          if (Date.now() - lastDeleteAt < 3000) {
+                            setTopics(topics.filter((_, j) => j !== i));
+                            if (isExpanded) setExpandedTopic(null);
+                            setLastDeleteAt(Date.now());
+                          } else {
+                            setDeleteConfirm({ type: "cat", catIdx: i, label: t.label || `Kategorie ${i}` });
+                          }
+                        }}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -453,8 +468,10 @@ export default function TenantDetailPage() {
                             return (
                               <div
                                 key={ai}
-                                className={`flex items-center gap-2 py-1 px-1 rounded transition-colors ${
-                                  isDragOverAngle ? "border-t-2 border-emerald-400" : ""
+                                className={`flex items-center gap-2 py-1 px-1 rounded transition-all ${
+                                  hoverDelete?.type === "angle" && hoverDelete.catIdx === i && hoverDelete.angleIdx === ai
+                                    ? "bg-red-50 ring-1 ring-red-200"
+                                    : isDragOverAngle ? "border-t-2 border-emerald-400" : ""
                                 } ${dragItem?.type === "angle" && dragItem.catIdx === i && dragItem.angleIdx === ai ? "opacity-40" : "hover:bg-muted/30"}`}
                                 draggable
                                 onDragStart={(e) => { e.stopPropagation(); handleAngleDragStart(i, ai); }}
@@ -491,8 +508,17 @@ export default function TenantDetailPage() {
                                   placeholder="Angle-Bezeichnung"
                                 />
                                 <button
-                                  className="text-muted-foreground/50 hover:text-destructive transition-colors"
-                                  onClick={() => removeAngle(i, ai)}
+                                  className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200"
+                                  onMouseEnter={() => setHoverDelete({ type: "angle", catIdx: i, angleIdx: ai })}
+                                  onMouseLeave={() => setHoverDelete(null)}
+                                  onClick={() => {
+                                    if (Date.now() - lastDeleteAt < 3000) {
+                                      removeAngle(i, ai);
+                                      setLastDeleteAt(Date.now());
+                                    } else {
+                                      setDeleteConfirm({ type: "angle", catIdx: i, angleIdx: ai, label: angle.label || `Angle ${ai + 1}` });
+                                    }
+                                  }}
                                 >
                                   <Trash2 size={12} />
                                 </button>
@@ -510,6 +536,40 @@ export default function TenantDetailPage() {
               })}
             </div>
             <button onClick={saveTopics} className="btn-primary mt-4" disabled={saving}><Save size={14} /> Speichern</button>
+
+            {/* Delete Confirm Modal */}
+            {deleteConfirm && (
+              <div className="dw-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setDeleteConfirm(null); }}>
+                <div className="dw-modal" style={{ width: "min(380px, 90vw)" }}>
+                  <div className="dw-modal-header">
+                    <h2>Wirklich löschen?</h2>
+                    <button className="dw-icon-btn" onClick={() => setDeleteConfirm(null)}>&times;</button>
+                  </div>
+                  <div className="dw-modal-body">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      <strong className="text-foreground">{deleteConfirm.label}</strong> wird unwiderruflich entfernt.
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <button className="btn-outline" onClick={() => setDeleteConfirm(null)}>Abbrechen</button>
+                      <button className="btn-destructive" onClick={() => {
+                        if (deleteConfirm.type === "cat") {
+                          setTopics(topics.filter((_, j) => j !== deleteConfirm.catIdx));
+                          if (expandedTopic === deleteConfirm.catIdx) setExpandedTopic(null);
+                        } else {
+                          removeAngle(deleteConfirm.catIdx, deleteConfirm.angleIdx);
+                        }
+                        setLastDeleteAt(Date.now());
+                        setDeleteConfirm(null);
+                        setHoverDelete(null);
+                      }}>Löschen</button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground/60 mt-3 text-center italic">
+                      Nach Bestätigung: weitere Löschungen innerhalb 3s ohne Nachfrage
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -554,7 +614,7 @@ export default function TenantDetailPage() {
                       <p className="font-medium text-sm">{u.email}</p>
                       <p className="text-xs text-muted-foreground">{u.name || "Kein Name"} &middot; Erstellt: {new Date(u.created_at).toLocaleDateString("de")}</p>
                     </div>
-                    <button onClick={() => deleteCustomerUser(u.id)} className="btn-ghost text-destructive text-xs">
+                    <button onClick={() => deleteCustomerUser(u.id)} className="dw-icon-btn hover:!bg-red-50 hover:!text-destructive hover:!border-red-200">
                       <Trash2 size={14} />
                     </button>
                   </div>
