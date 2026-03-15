@@ -80,14 +80,15 @@ body {
 
   /* Stat Grid */
   .stat-grid {
-    display: grid; gap: 16px;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(2, 1fr);
     margin-bottom: 24px;
   }
+  @media (min-width: 768px) { .stat-grid { grid-template-columns: repeat(4, 1fr); } }
   .stat-card {
     @apply bg-card border border-border shadow-sm;
-    display: grid; gap: 10px;
-    border-radius: 16px; padding: 20px;
+    display: grid; gap: 2px;
+    border-radius: 14px; padding: 14px 16px;
   }
   .stat-card-link {
     text-decoration: none; color: inherit; cursor: pointer;
@@ -99,13 +100,13 @@ body {
   }
   .stat-meta { display: flex; justify-content: space-between; align-items: center; }
   .stat-icon {
-    width: 40px; height: 40px; border-radius: 12px;
+    width: 32px; height: 32px; border-radius: 10px;
     display: inline-flex; align-items: center; justify-content: center;
   }
   .stat-delta { font-size: 12px; padding: 3px 10px; border-radius: 999px; font-weight: 500; }
-  .stat-value { @apply text-foreground; font-size: 30px; font-weight: 700; }
+  .stat-value { @apply text-foreground; font-size: 24px; font-weight: 700; }
   .stat-label { @apply text-muted-foreground; font-size: 12px; letter-spacing: 0.8px; text-transform: uppercase; }
-  .stat-chart { width: 100%; height: 50px; }
+  .stat-chart { width: 100%; height: 36px; margin-top: 4px; }
 
   /* Pill Toggle */
   .pill-group {

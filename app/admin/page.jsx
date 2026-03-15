@@ -40,8 +40,10 @@ const fmtNum = (n) => {
   return n.toLocaleString("de-DE");
 };
 
-const toPoints = (values, w = 120, h = 40) => {
-  if (!values || !values.length) return `0,${h} ${w},${h}`;
+const PLACEHOLDER_POINTS = "0,28 17,24 34,26 51,20 68,22 85,16 102,18 120,10";
+
+const toPoints = (values, w = 120, h = 32) => {
+  if (!values || !values.length || values.every(v => v === 0)) return null;
   const max = Math.max(...values, 1);
   return values.map((v, i) =>
     `${(i / Math.max(values.length - 1, 1)) * w},${h - (v / max) * (h - 4)}`
@@ -145,8 +147,8 @@ export default function AdminDashboard() {
           const inner = (
             <>
               <div className="stat-meta">
-                <span className="stat-icon" style={{ background: `${card.colors[0]}20`, color: card.colors[0] }}>
-                  <Icon size={18} />
+                <span className="stat-icon" style={{ background: `${card.colors[0]}18`, color: card.colors[0] }}>
+                  <Icon size={15} />
                 </span>
                 {delta && (
                   <span className="stat-delta" style={{
@@ -159,7 +161,7 @@ export default function AdminDashboard() {
               </div>
               <div className="stat-value"><CountUp value={value} delay={idx * 150} /></div>
               <div className="stat-label">{card.label}</div>
-              <svg className="stat-chart" viewBox="0 0 120 40" aria-hidden="true">
+              <svg className="stat-chart" viewBox="0 0 120 32" aria-hidden="true">
                 <defs>
                   <linearGradient id={card.gradId} x1="0" x2="1">
                     <stop offset="0%" stopColor={card.colors[0]} />
@@ -167,16 +169,17 @@ export default function AdminDashboard() {
                   </linearGradient>
                 </defs>
                 <polyline
-                  points={toPoints(series)}
+                  points={toPoints(series) || PLACEHOLDER_POINTS}
                   fill="none"
-                  stroke={`url(#${card.gradId})`}
-                  strokeWidth="3"
+                  stroke={toPoints(series) ? `url(#${card.gradId})` : "hsl(var(--border))"}
+                  strokeWidth={toPoints(series) ? "2.5" : "1.5"}
                   strokeLinecap="round"
-                  style={{
+                  strokeDasharray={toPoints(series) ? undefined : "4 3"}
+                  style={toPoints(series) ? {
                     strokeDasharray: 300,
                     strokeDashoffset: 300,
                     animation: `statLineDraw 1.4s ease-out ${0.3 + idx * 0.15}s forwards`,
-                  }}
+                  } : { opacity: 0.5 }}
                 />
               </svg>
             </>
