@@ -1065,13 +1065,19 @@ export default function TenantDetailPage() {
                 placeholder="z.B. Mann, 45 Jahre, professioneller Look, dunkles Haar, Anzug. Freundliches Lächeln..."
               />
             </div>
+            {/* Labels Zeile */}
+            <div className="grid grid-cols-4 gap-3 mb-1">
+              {["Kopf frontal", "Kopf seitlich", "Ganzkörper", "Andere Pose"].map((l, i) => (
+                <p key={i} className="text-xs font-medium text-muted-foreground">{l}</p>
+              ))}
+            </div>
+            {/* Bild-Slots */}
             <div className="grid grid-cols-4 gap-3">
               {[0, 1, 2, 3].map((slot) => {
                 const img = refImages.persona.find(i => i.slot_index === slot);
-                const labels = ["Kopf frontal", "Kopf seitlich", "Ganzkörper", "Andere Pose / Arbeitsumfeld"];
+                const labels = ["Kopf frontal", "Kopf seitlich", "Ganzkörper", "Andere Pose"];
                 return (
                   <div key={slot} className="relative group">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">{labels[slot]}</p>
                     {img ? (
                       <div className="relative">
                         <img src={img.thumb_url || img.image_url} alt={img.description || labels[slot]} className="w-full aspect-square object-cover rounded-lg border border-border cursor-pointer" onClick={() => window.open(img.image_url, "_blank")} title="Klicken zum Vergrößern" />
