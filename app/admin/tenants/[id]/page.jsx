@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Save, Play, ArrowLeft } from "lucide-react";
+import { Save, Play, ArrowLeft, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 export default function TenantDetailPage() {
@@ -13,6 +13,8 @@ export default function TenantDetailPage() {
   const [profile, setProfile] = useState({});
   const [topics, setTopics] = useState([]);
   const [tab, setTab] = useState("profile");
+  const [users, setUsers] = useState([]);
+  const [newUser, setNewUser] = useState({ email: "", name: "", password: "" });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -63,6 +65,48 @@ export default function TenantDetailPage() {
     setSaving(false);
   }
 
+  async function loadUsers() {
+    const res = await fetch("/api/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "list_users", tenantId: id }),
+    });
+    const data = await res.json();
+    setUsers(data.users || []);
+  }
+
+  async function createCustomerUser() {
+    if (!newUser.email || !newUser.password) return;
+    setSaving(true);
+    setMsg("");
+    const res = await fetch("/api/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "create_user", tenantId: id, ...newUser }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setNewUser({ email: "", name: "", password: "" });
+      setMsg("Zugang erstellt");
+      loadUsers();
+    } else {
+      setMsg(data.error || "Fehler");
+    }
+    setSaving(false);
+  }
+
+  async function deleteCustomerUser(userId) {
+    setSaving(true);
+    await fetch("/api/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete_user", userId }),
+    });
+    setMsg("Zugang gelöscht");
+    loadUsers();
+    setSaving(false);
+  }
+
   async function triggerRun(preview = false) {
     setMsg("Pipeline wird ausgeführt...");
     const res = await fetch("/api/autopilot/run", {
@@ -102,6 +146,7 @@ export default function TenantDetailPage() {
     { key: "topics", label: "Themen" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
+    { key: "users", label: "Zugänge" },
   ];
 
   return (
@@ -128,7 +173,7 @@ export default function TenantDetailPage() {
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => { setTab(t.key); if (t.key === "users") loadUsers(); }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
@@ -264,6 +309,44 @@ export default function TenantDetailPage() {
           <h3 className="font-semibold">E-Mail</h3>
           <FormField label="Report E-Mail" value={settings.report_email} onChange={(v) => setSettings({ ...settings, report_email: v })} placeholder="info@beispiel.de" />
           <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
+        </div>
+      )}
+
+      {/* Tab: Zugänge */}
+      {tab === "users" && (
+        <div className="admin-card space-y-6">
+          <div>
+            <h3 className="font-semibold mb-3">Neuen Zugang anlegen</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <FormField label="E-Mail" value={newUser.email} onChange={(v) => setNewUser({ ...newUser, email: v })} placeholder="kunde@beispiel.de" />
+              <FormField label="Name (optional)" value={newUser.name} onChange={(v) => setNewUser({ ...newUser, name: v })} placeholder="Max Mustermann" />
+              <FormField label="Passwort" value={newUser.password} onChange={(v) => setNewUser({ ...newUser, password: v })} type="password" />
+            </div>
+            <button onClick={createCustomerUser} className="btn-primary mt-3" disabled={saving || !newUser.email || !newUser.password}>
+              Zugang erstellen
+            </button>
+          </div>
+          <hr className="border-border" />
+          <div>
+            <h3 className="font-semibold mb-3">Bestehende Zugänge</h3>
+            {users.length > 0 ? (
+              <div className="space-y-2">
+                {users.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted/30">
+                    <div>
+                      <p className="font-medium text-sm">{u.email}</p>
+                      <p className="text-xs text-muted-foreground">{u.name || "Kein Name"} &middot; Erstellt: {new Date(u.created_at).toLocaleDateString("de")}</p>
+                    </div>
+                    <button onClick={() => deleteCustomerUser(u.id)} className="btn-ghost text-destructive text-xs">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Noch keine Kundenzugänge angelegt.</p>
+            )}
+          </div>
         </div>
       )}
 

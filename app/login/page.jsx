@@ -22,7 +22,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login fehlgeschlagen");
-      router.push("/admin");
+      router.push(data.redirect || "/admin");
     } catch (err) {
       setError(err.message);
     } finally {

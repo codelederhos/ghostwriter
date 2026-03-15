@@ -32,6 +32,7 @@ export async function POST(req) {
     return NextResponse.json({
       ok: true,
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      redirect: user.role === "customer" ? "/kunde" : "/admin",
     });
   } catch (err) {
     console.error("[Login]", err);

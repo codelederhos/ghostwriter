@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { encrypt } from "@/lib/crypto";
+import bcrypt from "bcryptjs";
 
 export async function GET() {
   const session = await requireAdmin();
@@ -32,6 +33,9 @@ export async function POST(req) {
     case "update_settings": return updateSettings(body);
     case "update_profile": return updateProfile(body);
     case "update_topics": return updateTopics(body);
+    case "list_users": return listUsers(body);
+    case "create_user": return createUser(body);
+    case "delete_user": return deleteUser(body);
     default:
       return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
   }
@@ -144,5 +148,30 @@ async function updateTopics({ tenantId, topics }) {
       [tenantId, t.category_id, t.label, t.description, t.default_cta || "LEARN_MORE", t.is_active !== false]
     );
   }
+  return NextResponse.json({ ok: true });
+}
+
+async function listUsers({ tenantId }) {
+  const { rows } = await query(
+    "SELECT id, email, name, role, created_at FROM users WHERE tenant_id = $1 ORDER BY created_at DESC",
+    [tenantId]
+  );
+  return NextResponse.json({ users: rows });
+}
+
+async function createUser({ tenantId, email, name, password }) {
+  if (!email || !password) {
+    return NextResponse.json({ error: "E-Mail und Passwort erforderlich" }, { status: 400 });
+  }
+  const hash = await bcrypt.hash(password, 12);
+  const { rows: [user] } = await query(
+    "INSERT INTO users (email, name, password_hash, role, tenant_id) VALUES ($1, $2, $3, 'customer', $4) RETURNING id, email, name, role, created_at",
+    [email, name || null, hash, tenantId]
+  );
+  return NextResponse.json({ ok: true, user });
+}
+
+async function deleteUser({ userId }) {
+  await query("DELETE FROM users WHERE id = $1 AND role = 'customer'", [userId]);
   return NextResponse.json({ ok: true });
 }
