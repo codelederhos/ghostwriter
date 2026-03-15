@@ -42,6 +42,8 @@ export default function TenantDetailPage() {
   const [testCatIdx, setTestCatIdx] = useState(0);
   const [testAngleIdx, setTestAngleIdx] = useState(0);
   const [testRunning, setTestRunning] = useState(false);
+  const [testStep, setTestStep] = useState(0);
+  const [testResult, setTestResult] = useState(null);
   const [modelLabels, setModelLabels] = useState({});
 
   function showMsg(text, type = "success") {
@@ -248,10 +250,43 @@ export default function TenantDetailPage() {
 
   async function runTestPost() {
     setTestRunning(true);
+    setTestStep(0);
+    setTestResult(null);
+
+    // Simulierte Fortschritts-Steps (Pipeline dauert ~15-30s)
+    const steps = [
+      { delay: 0, step: 1 },       // Profil analysieren
+      { delay: 3000, step: 2 },    // Thema & Angle wählen
+      { delay: 6000, step: 3 },    // SEO-Keywords recherchieren
+      { delay: 10000, step: 4 },   // Artikel schreiben
+      { delay: 18000, step: 5 },   // Bilder generieren
+    ];
+    const timers = steps.map(s => setTimeout(() => setTestStep(s.step), s.delay));
+
     const override = testMode === "random" ? {} : { categoryIndex: testCatIdx, angleIndex: testAngleIdx };
-    await triggerRun(true, override, true);
+    const res = await fetch("/api/autopilot/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId: id, preview: true, override, isTest: true }),
+    });
+    const data = await res.json();
+
+    timers.forEach(clearTimeout);
     setTestRunning(false);
-    setShowTestModal(false);
+
+    if (data.ok) {
+      const r = data.results?.[0];
+      if (r?.error) {
+        showMsg(`Fehler: ${r.error}`, "error");
+        setTestStep(0);
+      } else {
+        setTestStep(6); // fertig
+        setTestResult(r);
+      }
+    } else {
+      showMsg(`Fehler: ${data.error}`, "error");
+      setTestStep(0);
+    }
   }
 
   if (!tenant) return (
@@ -661,7 +696,7 @@ export default function TenantDetailPage() {
                 </span>
                 <div className="flex-1">
                   <p className="font-medium text-sm">Backlinks aktiv</p>
-                  <p className="text-xs text-muted-foreground">1 Backlink zu nicht-konkurrierender Firma pro Post (SEO-Boost)</p>
+                  <p className="text-xs text-muted-foreground">Gegenseitige Verlinkung mit nicht-konkurrierenden Firmen (SEO-Boost)</p>
                 </div>
                 <span className="text-sm font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">+€1/Post</span>
               </label>
@@ -1387,23 +1422,59 @@ export default function TenantDetailPage() {
                 </div>
               )}
 
-              <button
-                onClick={runTestPost}
-                disabled={testRunning}
-                className="btn-ai w-full justify-center"
-              >
-                {testRunning ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Wird generiert...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <FlaskConical size={14} />
-                    {testMode === "random" ? "Zufälligen Test-Post erstellen" : "Test-Post erstellen"}
-                  </span>
-                )}
-              </button>
+              {/* Pipeline-Fortschritt */}
+              {testRunning && testStep > 0 && (
+                <div className="mb-4 space-y-2">
+                  {[
+                    { s: 1, label: "Profil wird analysiert...", icon: "🔍" },
+                    { s: 2, label: "Thema & Blickwinkel werden gewählt...", icon: "🎯" },
+                    { s: 3, label: "SEO-Keywords werden recherchiert...", icon: "📊" },
+                    { s: 4, label: "Artikel wird geschrieben...", icon: "✍️" },
+                    { s: 5, label: "Bilder werden generiert...", icon: "🎨" },
+                  ].map(({ s, label, icon }) => (
+                    <div key={s} className={`flex items-center gap-2 text-sm transition-all duration-300 ${
+                      testStep === s ? "text-foreground font-medium" : testStep > s ? "text-emerald-600" : "text-muted-foreground/30"
+                    }`}>
+                      <span className="w-5 text-center">
+                        {testStep > s ? "✓" : testStep === s ? (
+                          <span className="inline-block w-3.5 h-3.5 border-2 border-violet-400 border-t-violet-600 rounded-full animate-spin" />
+                        ) : "·"}
+                      </span>
+                      <span>{label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Ergebnis */}
+              {testResult && testStep === 6 && (
+                <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <p className="text-sm font-medium text-emerald-800 mb-1">Draft erstellt</p>
+                  <p className="text-sm text-emerald-700 font-semibold">{testResult.title}</p>
+                  <p className="text-xs text-emerald-600 mt-1">
+                    Status: {testResult.status} · Sprache: {testResult.language}
+                  </p>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => { setShowTestModal(false); setTestStep(0); setTestResult(null); }} className="btn-outline text-xs">Schließen</button>
+                    <button onClick={() => { setShowTestModal(false); setTestStep(0); setTestResult(null); setTab("topics"); }} className="btn-outline text-xs">Zu Themen</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Start Button — nur wenn nicht läuft und kein Ergebnis */}
+              {!testRunning && !testResult && (
+                <button onClick={runTestPost} className="btn-ai w-full justify-center">
+                  <FlaskConical size={14} />
+                  {testMode === "random" ? "Zufälligen Test-Post erstellen" : "Test-Post erstellen"}
+                </button>
+              )}
+
+              {/* Nochmal Button nach Ergebnis */}
+              {testResult && (
+                <button onClick={() => { setTestResult(null); setTestStep(0); }} className="btn-ai-outline w-full justify-center mt-2">
+                  <FlaskConical size={14} /> Weiteren Test-Post erstellen
+                </button>
+              )}
             </div>
           </div>
         </div>
