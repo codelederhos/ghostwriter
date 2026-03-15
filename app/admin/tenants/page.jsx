@@ -6,9 +6,12 @@ import { Plus, Trash2, Play } from "lucide-react";
 
 export default function TenantsPage() {
   const [tenants, setTenants] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", slug: "", domain: "" });
   const [running, setRunning] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   useEffect(() => { loadTenants(); }, []);
 
@@ -16,6 +19,7 @@ export default function TenantsPage() {
     const res = await fetch("/api/tenants");
     const data = await res.json();
     setTenants(data.tenants || []);
+    setLoading(false);
   }
 
   async function createTenant(e) {
@@ -31,17 +35,19 @@ export default function TenantsPage() {
   }
 
   async function deleteTenant(id) {
-    if (!confirm("Tenant wirklich löschen? Alle Posts werden gelöscht!")) return;
+    setConfirmDelete(null);
     await fetch("/api/tenants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "delete", id }),
     });
+    setMsg({ type: "info", text: "Tenant gelöscht." });
     loadTenants();
   }
 
   async function triggerRun(tenantId) {
     setRunning(tenantId);
+    setMsg(null);
     try {
       const res = await fetch("/api/autopilot/run", {
         method: "POST",
@@ -50,12 +56,12 @@ export default function TenantsPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        alert(`Pipeline erfolgreich! ${data.results?.length || 0} Posts erstellt.`);
+        setMsg({ type: "success", text: `Pipeline erfolgreich! ${data.results?.length || 0} Posts erstellt.` });
       } else {
-        alert(`Fehler: ${data.error}`);
+        setMsg({ type: "error", text: `Fehler: ${data.error}` });
       }
     } catch (err) {
-      alert(`Fehler: ${err.message}`);
+      setMsg({ type: "error", text: `Fehler: ${err.message}` });
     }
     setRunning(null);
     loadTenants();
@@ -69,6 +75,32 @@ export default function TenantsPage() {
           <Plus size={16} /> Neuer Tenant
         </button>
       </div>
+
+      {/* Inline Feedback */}
+      {msg && (
+        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm ${
+          msg.type === "success" ? "bg-emerald-50 text-emerald-800" :
+          msg.type === "error" ? "bg-red-50 text-red-800" :
+          "bg-blue-50 text-blue-800"
+        }`}>
+          {msg.text}
+          <button onClick={() => setMsg(null)} className="float-right font-medium hover:opacity-70">&times;</button>
+        </div>
+      )}
+
+      {/* Delete Confirm Overlay */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setConfirmDelete(null)}>
+          <div className="bg-white rounded-xl p-6 shadow-lg max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold mb-2">Tenant löschen?</h3>
+            <p className="text-sm text-muted-foreground mb-4">Alle Posts werden unwiderruflich gelöscht.</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConfirmDelete(null)} className="btn-ghost">Abbrechen</button>
+              <button onClick={() => deleteTenant(confirmDelete)} className="btn-destructive">Löschen</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Form */}
       {showCreate && (
@@ -114,7 +146,24 @@ export default function TenantsPage() {
 
       {/* Tenant List */}
       <div className="space-y-3">
-        {tenants.map((t) => (
+        {loading ? (
+          [1, 2, 3].map((i) => (
+            <div key={i} className="admin-card flex items-center justify-between animate-pulse">
+              <div>
+                <div className="h-4 w-40 bg-muted rounded mb-2" />
+                <div className="h-3 w-56 bg-muted rounded" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-5 w-14 bg-muted rounded-full" />
+                <div className="h-8 w-16 bg-muted rounded-lg" />
+              </div>
+            </div>
+          ))
+        ) : tenants.length === 0 ? (
+          <div className="admin-card text-center py-12">
+            <p className="text-muted-foreground">Noch keine Tenants vorhanden.</p>
+          </div>
+        ) : tenants.map((t) => (
           <div key={t.id} className="admin-card flex items-center justify-between">
             <div>
               <Link href={`/admin/tenants/${t.id}`} className="font-semibold text-foreground hover:text-primary">
@@ -136,17 +185,12 @@ export default function TenantsPage() {
               >
                 <Play size={14} /> {running === t.id ? "Läuft..." : "Run"}
               </button>
-              <button onClick={() => deleteTenant(t.id)} className="btn-ghost text-destructive" title="Löschen">
+              <button onClick={() => setConfirmDelete(t.id)} className="btn-ghost text-destructive" title="Löschen">
                 <Trash2 size={14} />
               </button>
             </div>
           </div>
         ))}
-        {tenants.length === 0 && (
-          <div className="admin-card text-center py-12">
-            <p className="text-muted-foreground">Noch keine Tenants vorhanden.</p>
-          </div>
-        )}
       </div>
     </div>
   );

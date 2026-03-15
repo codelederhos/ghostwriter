@@ -9,10 +9,10 @@ export default function Home() {
           Autonomes SEO-Content-System. Schreibt Blog-Artikel und postet auf Google Business Profile.
         </p>
         <div className="flex gap-4 justify-center">
-          <Link href="/admin" className="btn-primary px-6 py-3 bg-white text-foreground rounded-lg font-medium hover:bg-white/90 transition-colors">
+          <Link href="/admin" className="inline-flex items-center justify-center px-6 py-3 bg-white text-foreground rounded-lg font-medium hover:bg-white/90 transition-colors">
             Admin Panel
           </Link>
-          <Link href="/login" className="btn-outline px-6 py-3 border border-white/30 rounded-lg text-white/80 hover:text-white hover:border-white/50 transition-colors">
+          <Link href="/login" className="inline-flex items-center justify-center px-6 py-3 border border-white/30 rounded-lg font-medium text-white/80 hover:text-white hover:border-white/50 transition-colors">
             Login
           </Link>
         </div>

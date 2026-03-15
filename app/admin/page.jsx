@@ -32,7 +32,7 @@ export default async function AdminDashboard() {
       <h1 className="admin-title">Dashboard</h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           { label: "Tenants", value: stats.tenants, color: "text-blue-600" },
           { label: "Veröffentlicht", value: stats.published, color: "text-emerald-600" },

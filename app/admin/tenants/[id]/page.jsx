@@ -74,7 +74,27 @@ export default function TenantDetailPage() {
     setMsg(data.ok ? `Fertig! ${data.results?.length || 0} Posts.` : `Fehler: ${data.error}`);
   }
 
-  if (!tenant) return <div className="p-8">Laden...</div>;
+  if (!tenant) return (
+    <div className="animate-pulse">
+      <div className="h-4 w-20 bg-muted rounded mb-4" />
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="h-7 w-48 bg-muted rounded mb-2" />
+          <div className="h-4 w-24 bg-muted rounded" />
+        </div>
+        <div className="flex gap-2">
+          <div className="h-9 w-24 bg-muted rounded-lg" />
+          <div className="h-9 w-28 bg-muted rounded-lg" />
+        </div>
+      </div>
+      <div className="flex gap-1 mb-6 border-b border-border">
+        {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-9 w-24 bg-muted rounded mb-1 mx-0.5" />)}
+      </div>
+      <div className="admin-card space-y-4">
+        {[1, 2, 3, 4].map((i) => <div key={i} className="h-10 bg-muted rounded" />)}
+      </div>
+    </div>
+  );
 
   const tabs = [
     { key: "profile", label: "Firmenprofil" },
