@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Save, Play, ArrowLeft, Trash2 } from "lucide-react";
+import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 const DEFAULT_ANGLES = [
@@ -24,6 +24,8 @@ export default function TenantDetailPage() {
   const [users, setUsers] = useState([]);
   const [newUser, setNewUser] = useState({ email: "", name: "", password: "" });
   const [expandedTopic, setExpandedTopic] = useState(null);
+  const [dragItem, setDragItem] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -263,126 +265,231 @@ export default function TenantDetailPage() {
         const activeAngles = topics.reduce((sum, t) => sum + ((t.angles || DEFAULT_ANGLES).filter(a => a.active !== false).length), 0);
         const avgAngles = activeCategories > 0 ? Math.round(activeAngles / activeCategories) : 5;
         const combos = activeCategories * avgAngles * 4;
-        const years = settings.frequency_hours ? Math.floor(combos * (settings.frequency_hours / 24) / 365 * 10) / 10 : Math.floor(combos * 3 / 365 * 10) / 10;
+        const freqDays = settings.frequency_hours ? settings.frequency_hours / 24 : 3;
+        const years = Math.floor(combos * freqDays / 365 * 10) / 10;
+
+        const handleCatDragStart = (i) => setDragItem({ type: "cat", catIdx: i });
+        const handleCatDragOver = (e, i) => {
+          e.preventDefault();
+          if (!dragItem || dragItem.type !== "cat" || dragItem.catIdx === i) return;
+          setDropTarget({ type: "cat", catIdx: i });
+        };
+        const handleCatDrop = (i) => {
+          if (!dragItem || dragItem.type !== "cat") return;
+          const n = [...topics];
+          const [moved] = n.splice(dragItem.catIdx, 1);
+          n.splice(i, 0, moved);
+          n.forEach((t, idx) => t.category_id = idx);
+          setTopics(n);
+          setDragItem(null);
+          setDropTarget(null);
+        };
+
+        const handleAngleDragStart = (catIdx, angleIdx) => setDragItem({ type: "angle", catIdx, angleIdx });
+        const handleAngleDragOver = (e, catIdx, angleIdx) => {
+          e.preventDefault();
+          if (!dragItem || dragItem.type !== "angle") return;
+          setDropTarget({ type: "angle", catIdx, angleIdx });
+        };
+        const handleAngleDrop = (targetCatIdx, targetAngleIdx) => {
+          if (!dragItem || dragItem.type !== "angle") return;
+          const n = [...topics];
+          const srcAngles = [...(n[dragItem.catIdx].angles || DEFAULT_ANGLES)];
+          const [moved] = srcAngles.splice(dragItem.angleIdx, 1);
+          if (dragItem.catIdx === targetCatIdx) {
+            srcAngles.splice(targetAngleIdx, 0, moved);
+            n[targetCatIdx].angles = srcAngles.map((a, i) => ({ ...a, key: i + 1 }));
+          } else {
+            n[dragItem.catIdx].angles = srcAngles.map((a, i) => ({ ...a, key: i + 1 }));
+            const dstAngles = [...(n[targetCatIdx].angles || DEFAULT_ANGLES)];
+            dstAngles.splice(targetAngleIdx, 0, moved);
+            n[targetCatIdx].angles = dstAngles.map((a, i) => ({ ...a, key: i + 1 }));
+          }
+          setTopics(n);
+          setDragItem(null);
+          setDropTarget(null);
+        };
+
+        const handleDragEnd = () => { setDragItem(null); setDropTarget(null); };
+
+        const addAngle = (catIdx) => {
+          const n = [...topics];
+          const angles = [...(n[catIdx].angles || DEFAULT_ANGLES)];
+          angles.push({ key: angles.length + 1, label: "", active: true });
+          n[catIdx].angles = angles;
+          setTopics(n);
+        };
+
+        const removeAngle = (catIdx, angleIdx) => {
+          const n = [...topics];
+          const angles = [...(n[catIdx].angles || DEFAULT_ANGLES)];
+          angles.splice(angleIdx, 1);
+          n[catIdx].angles = angles.map((a, i) => ({ ...a, key: i + 1 }));
+          setTopics(n);
+        };
 
         return (
           <div className="admin-card">
-            {/* Header */}
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold">Themen-Kategorien</h3>
               <button
-                onClick={() => setTopics([...topics, { category_id: topics.length, label: "", description: "", default_cta: "LEARN_MORE", is_active: true, angles: DEFAULT_ANGLES }])}
+                onClick={() => setTopics([...topics, { category_id: topics.length, label: "", description: "", default_cta: "LEARN_MORE", is_active: true, angles: [...DEFAULT_ANGLES] }])}
                 className="btn-outline text-xs"
               >
-                + Thema
+                <Plus size={12} /> Kategorie
               </button>
             </div>
 
-            {/* Coverage Info */}
-            <div className="mb-4 px-3 py-2 rounded-lg bg-muted/50 text-xs text-muted-foreground flex items-center gap-4">
-              <span><strong className="text-foreground">{activeCategories}</strong> Kategorien</span>
+            {/* Coverage */}
+            <div className="mb-4 px-3 py-2 rounded-lg bg-muted/50 text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span><strong className="text-foreground">{activeCategories}</strong> Kat.</span>
               <span>×</span>
               <span><strong className="text-foreground">{avgAngles}</strong> Angles</span>
               <span>×</span>
               <span><strong className="text-foreground">4</strong> Saisons</span>
               <span>=</span>
-              <span><strong className="text-emerald-600">{combos} Kombinationen</strong></span>
-              <span className="ml-auto text-emerald-600 font-medium">~{years} Jahre ohne Wiederholung</span>
+              <span className="text-emerald-600 font-medium">{combos} Kombinationen (~{years} J.)</span>
             </div>
 
             {/* Column Headers */}
-            <div className="grid grid-cols-12 gap-2 px-3 pb-2 border-b border-border mb-2">
-              <span className="col-span-1 text-xs font-medium text-muted-foreground">#</span>
-              <span className="col-span-3 text-xs font-medium text-muted-foreground">Kategorie</span>
-              <span className="col-span-5 text-xs font-medium text-muted-foreground">Beschreibung</span>
-              <span className="col-span-2 text-xs font-medium text-muted-foreground">CTA</span>
-              <span className="col-span-1"></span>
+            <div className="grid grid-cols-[24px_24px_1fr_2fr_120px_28px] gap-2 px-2 pb-2 border-b border-border text-xs font-medium text-muted-foreground">
+              <span></span>
+              <span>#</span>
+              <span>Kategorie</span>
+              <span>Beschreibung</span>
+              <span>CTA</span>
+              <span></span>
             </div>
 
-            {/* Categories */}
-            <div className="space-y-1">
-              {topics.map((t, i) => (
-                <div key={i}>
-                  {/* Category Row */}
-                  <div className="grid grid-cols-12 gap-2 items-center p-2 rounded-lg hover:bg-muted/30 transition-colors">
-                    <button
-                      className="col-span-1 text-xs text-muted-foreground text-left hover:text-primary transition-colors"
-                      onClick={() => setExpandedTopic(expandedTopic === i ? null : i)}
-                      title="Angles anzeigen"
+            {/* Category List */}
+            <div className="divide-y divide-border/30">
+              {topics.map((t, i) => {
+                const isExpanded = expandedTopic === i;
+                const angles = t.angles || DEFAULT_ANGLES;
+                const isDragOverCat = dropTarget?.type === "cat" && dropTarget.catIdx === i;
+                return (
+                  <div key={i}
+                    className={isDragOverCat ? "border-t-2 border-emerald-400" : ""}
+                    onDragOver={(e) => handleCatDragOver(e, i)}
+                    onDrop={() => handleCatDrop(i)}
+                  >
+                    {/* Category Row */}
+                    <div
+                      className={`grid grid-cols-[24px_24px_1fr_2fr_120px_28px] gap-2 items-center px-2 py-2.5 rounded-lg transition-colors ${
+                        dragItem?.type === "cat" && dragItem.catIdx === i ? "opacity-40" : "hover:bg-muted/30"
+                      }`}
+                      draggable
+                      onDragStart={() => handleCatDragStart(i)}
+                      onDragEnd={handleDragEnd}
                     >
-                      {expandedTopic === i ? "▼" : "▶"} {t.category_id}
-                    </button>
-                    <input
-                      className="col-span-3 form-input text-sm"
-                      value={t.label}
-                      onChange={(e) => { const n = [...topics]; n[i].label = e.target.value; setTopics(n); }}
-                      placeholder="Kategorie"
-                    />
-                    <input
-                      className="col-span-5 form-input text-sm"
-                      value={t.description}
-                      onChange={(e) => { const n = [...topics]; n[i].description = e.target.value; setTopics(n); }}
-                      placeholder="Beschreibung"
-                    />
-                    <select
-                      className="col-span-2 form-select text-sm"
-                      value={t.default_cta}
-                      onChange={(e) => { const n = [...topics]; n[i].default_cta = e.target.value; setTopics(n); }}
-                    >
-                      <option value="LEARN_MORE">Mehr erfahren</option>
-                      <option value="CALL">Anrufen</option>
-                    </select>
-                    <button
-                      className="col-span-1 btn-ghost text-destructive text-xs"
-                      onClick={() => setTopics(topics.filter((_, j) => j !== i))}
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  {/* Expanded Angles */}
-                  {expandedTopic === i && (
-                    <div className="ml-8 mr-4 mb-3 mt-1 p-3 rounded-lg border border-border/50 bg-muted/20">
-                      <p className="text-xs font-medium text-muted-foreground mb-2">
-                        Angles (Blickwinkel pro Post)
-                      </p>
-                      <div className="space-y-1.5">
-                        {(t.angles || DEFAULT_ANGLES).map((angle, ai) => (
-                          <div key={angle.key} className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={angle.active !== false}
-                              onChange={() => {
-                                const n = [...topics];
-                                const angles = [...(n[i].angles || DEFAULT_ANGLES)];
-                                angles[ai] = { ...angles[ai], active: !angles[ai].active };
-                                n[i].angles = angles;
-                                setTopics(n);
-                              }}
-                              className="rounded border-border"
-                            />
-                            <span className="text-xs text-muted-foreground w-4">{angle.key}</span>
-                            <input
-                              className="form-input text-sm flex-1"
-                              value={angle.label}
-                              onChange={(e) => {
-                                const n = [...topics];
-                                const angles = [...(n[i].angles || DEFAULT_ANGLES)];
-                                angles[ai] = { ...angles[ai], label: e.target.value };
-                                n[i].angles = angles;
-                                setTopics(n);
-                              }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Saison (Frühling/Sommer/Herbst/Winter) wird automatisch erkannt.
-                      </p>
+                      <span className="cursor-grab text-muted-foreground/50 hover:text-muted-foreground" data-drag-handle>
+                        <GripVertical size={14} />
+                      </span>
+                      <button
+                        className="text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5"
+                        onClick={() => setExpandedTopic(isExpanded ? null : i)}
+                      >
+                        {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        {i}
+                      </button>
+                      <input
+                        className="form-input text-sm"
+                        value={t.label}
+                        onChange={(e) => { const n = [...topics]; n[i].label = e.target.value; setTopics(n); }}
+                        placeholder="Kategorie"
+                      />
+                      <input
+                        className="form-input text-sm"
+                        value={t.description}
+                        onChange={(e) => { const n = [...topics]; n[i].description = e.target.value; setTopics(n); }}
+                        placeholder="Beschreibung"
+                      />
+                      <select
+                        className="form-select text-sm"
+                        value={t.default_cta}
+                        onChange={(e) => { const n = [...topics]; n[i].default_cta = e.target.value; setTopics(n); }}
+                      >
+                        <option value="LEARN_MORE">Mehr erfahren</option>
+                        <option value="CALL">Anrufen</option>
+                      </select>
+                      <button
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={() => { setTopics(topics.filter((_, j) => j !== i)); if (isExpanded) setExpandedTopic(null); }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* Expanded: Angles */}
+                    {isExpanded && (
+                      <div className="ml-10 mr-2 mb-3 mt-0.5 p-3 rounded-lg border border-border/50 bg-muted/20">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-muted-foreground">Angles (Blickwinkel)</p>
+                          <button onClick={() => addAngle(i)} className="text-xs text-primary hover:underline flex items-center gap-1">
+                            <Plus size={11} /> Angle
+                          </button>
+                        </div>
+                        <div className="space-y-1">
+                          {angles.map((angle, ai) => {
+                            const isDragOverAngle = dropTarget?.type === "angle" && dropTarget.catIdx === i && dropTarget.angleIdx === ai;
+                            return (
+                              <div
+                                key={ai}
+                                className={`flex items-center gap-2 py-1 px-1 rounded transition-colors ${
+                                  isDragOverAngle ? "border-t-2 border-emerald-400" : ""
+                                } ${dragItem?.type === "angle" && dragItem.catIdx === i && dragItem.angleIdx === ai ? "opacity-40" : "hover:bg-muted/30"}`}
+                                draggable
+                                onDragStart={(e) => { e.stopPropagation(); handleAngleDragStart(i, ai); }}
+                                onDragOver={(e) => { e.stopPropagation(); handleAngleDragOver(e, i, ai); }}
+                                onDrop={(e) => { e.stopPropagation(); handleAngleDrop(i, ai); }}
+                                onDragEnd={handleDragEnd}
+                              >
+                                <span className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground">
+                                  <GripVertical size={12} />
+                                </span>
+                                <input
+                                  type="checkbox"
+                                  checked={angle.active !== false}
+                                  onChange={() => {
+                                    const n = [...topics];
+                                    const a = [...(n[i].angles || DEFAULT_ANGLES)];
+                                    a[ai] = { ...a[ai], active: !a[ai].active };
+                                    n[i].angles = a;
+                                    setTopics(n);
+                                  }}
+                                  className="rounded border-border"
+                                />
+                                <span className="text-xs text-muted-foreground w-4 text-center">{angle.key}</span>
+                                <input
+                                  className="form-input text-sm flex-1"
+                                  value={angle.label}
+                                  onChange={(e) => {
+                                    const n = [...topics];
+                                    const a = [...(n[i].angles || DEFAULT_ANGLES)];
+                                    a[ai] = { ...a[ai], label: e.target.value };
+                                    n[i].angles = a;
+                                    setTopics(n);
+                                  }}
+                                  placeholder="Angle-Bezeichnung"
+                                />
+                                <button
+                                  className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                                  onClick={() => removeAngle(i, ai)}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground/60 mt-2 italic">
+                          Saison wird automatisch erkannt. Angles können per Drag & Drop zwischen Kategorien verschoben werden.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <button onClick={saveTopics} className="btn-primary mt-4" disabled={saving}><Save size={14} /> Speichern</button>
           </div>
