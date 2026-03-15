@@ -31,6 +31,8 @@ export default function TenantDetailPage() {
   const [lastDeleteAt, setLastDeleteAt] = useState(0); // 3s-Regel Timer
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [refImages, setRefImages] = useState({ persona: [], post: [] });
+  const [uploading, setUploading] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [testMode, setTestMode] = useState("random"); // "random" | "manual"
   const [testCatIdx, setTestCatIdx] = useState(0);
@@ -95,6 +97,60 @@ export default function TenantDetailPage() {
     });
     setMsg("Themen gespeichert");
     setSaving(false);
+  }
+
+  async function loadRefImages() {
+    const res = await fetch(`/api/tenants/${id}/images`);
+    const data = await res.json();
+    const persona = (data.images || []).filter(i => i.type === "persona").sort((a, b) => a.slot_index - b.slot_index);
+    const post = (data.images || []).filter(i => i.type === "post");
+    setRefImages({ persona, post });
+  }
+
+  async function uploadFile(file) {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    return data.url;
+  }
+
+  async function handlePersonaUpload(slotIndex, file, description) {
+    setUploading(true);
+    try {
+      const url = await uploadFile(file);
+      await fetch(`/api/tenants/${id}/images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "upsert_persona", slot_index: slotIndex, image_url: url, description }),
+      });
+      loadRefImages();
+    } catch (e) { setMsg(`Upload-Fehler: ${e.message}`); }
+    setUploading(false);
+  }
+
+  async function handlePostImageUpload(file, description, categories) {
+    setUploading(true);
+    try {
+      const url = await uploadFile(file);
+      await fetch(`/api/tenants/${id}/images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "add_post_image", image_url: url, description, categories }),
+      });
+      loadRefImages();
+    } catch (e) { setMsg(`Upload-Fehler: ${e.message}`); }
+    setUploading(false);
+  }
+
+  async function deleteRefImage(imageId) {
+    await fetch(`/api/tenants/${id}/images`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete_image", imageId }),
+    });
+    loadRefImages();
   }
 
   async function loadUsers() {
@@ -190,6 +246,7 @@ export default function TenantDetailPage() {
     { key: "settings", label: "API & Provider" },
     { key: "ctas", label: "CTAs" },
     { key: "topics", label: "Themen" },
+    { key: "images", label: "Referenzbilder" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
     { key: "users", label: "Zugänge" },
@@ -220,7 +277,7 @@ export default function TenantDetailPage() {
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => { setTab(t.key); if (t.key === "users") loadUsers(); }}
+            onClick={() => { setTab(t.key); if (t.key === "users") loadUsers(); if (t.key === "images") loadRefImages(); }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
@@ -461,14 +518,19 @@ export default function TenantDetailPage() {
                 <label className="form-label">Provider</label>
                 <select className="form-select" value={settings.image_provider || "dalle3"} onChange={(e) => setSettings({ ...settings, image_provider: e.target.value })}>
                   <option value="dalle3">DALL-E 3 (OpenAI)</option>
-                  <option value="flux">Flux (fal.ai)</option>
+                  <option value="gpt-image">GPT Image (gpt-image-1)</option>
+                  <option value="flux">Flux Schnell (fal.ai)</option>
+                  <option value="imagen">Imagen 3 (Google)</option>
                   <option value="stock">Stock (Unsplash/Pexels)</option>
-                  <option value="custom">Custom</option>
+                  <option value="custom">Custom Endpoint</option>
                 </select>
               </div>
               <FormField label="Bild API Key" value={settings.image_api_key} onChange={(v) => setSettings({ ...settings, image_api_key: v })} type="password" />
             </div>
             <FormField label="Bild-Stil Prefix" value={settings.image_style_prefix} onChange={(v) => setSettings({ ...settings, image_style_prefix: v })} textarea placeholder="Fotorealistisch, professionell, keine KI-Gesichter..." />
+            {settings.image_provider === "custom" && (
+              <FormField label="Custom Image Endpoint" value={settings.image_custom_endpoint} onChange={(v) => setSettings({ ...settings, image_custom_endpoint: v })} placeholder="https://api.example.com/v1/images/generations" />
+            )}
           </div>
           </>)}
 
@@ -798,6 +860,168 @@ export default function TenantDetailPage() {
           </div>
         );
       })()}
+
+      {/* Tab: Referenzbilder */}
+      {tab === "images" && (
+        <div className="space-y-6">
+          {/* Persona */}
+          <div className="admin-card">
+            <h3 className="font-semibold mb-2">Persona (Markenperson)</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              4 Bilder der Markenperson für konsistente KI-Bildgenerierung. Ideal: Frontal, Seitlich, Ganzkörper, Arbeitsumfeld.
+            </p>
+            <div className="mb-3">
+              <FormField
+                label="Persona-Vorgaben"
+                value={profile.persona_guidelines}
+                onChange={(v) => setProfile({ ...profile, persona_guidelines: v })}
+                textarea
+                placeholder="z.B. Mann, 45 Jahre, professioneller Look, dunkles Haar, Anzug. Freundliches Lächeln..."
+              />
+            </div>
+            <div className="grid grid-cols-4 gap-3">
+              {[0, 1, 2, 3].map((slot) => {
+                const img = refImages.persona.find(i => i.slot_index === slot);
+                const labels = ["Frontal", "Seitlich", "Ganzkörper", "Arbeitsumfeld"];
+                return (
+                  <div key={slot} className="relative group">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{labels[slot]}</p>
+                    {img ? (
+                      <div className="relative">
+                        <img src={img.image_url} alt={img.description || labels[slot]} className="w-full aspect-square object-cover rounded-lg border border-border" />
+                        <button
+                          onClick={() => deleteRefImage(img.id)}
+                          className="absolute top-1 right-1 dw-icon-btn-destructive bg-white/80 backdrop-blur-sm !w-6 !h-6"
+                        >
+                          <Trash2 size={10} />
+                        </button>
+                        <input
+                          className="form-input text-xs mt-1"
+                          value={img.description || ""}
+                          onChange={async (e) => {
+                            await fetch(`/api/tenants/${id}/images`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "upsert_persona", slot_index: slot, image_url: img.image_url, description: e.target.value }),
+                            });
+                          }}
+                          onBlur={loadRefImages}
+                          placeholder="Beschreibung..."
+                        />
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center aspect-square rounded-lg border-2 border-dashed border-border hover:border-emerald-400 hover:bg-emerald-50/50 cursor-pointer transition-colors">
+                        <Plus size={20} className="text-muted-foreground/40 mb-1" />
+                        <span className="text-[10px] text-muted-foreground/60">Bild hochladen</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handlePersonaUpload(slot, f, labels[slot]);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={saveProfile} className="btn-primary mt-3" disabled={saving}><Save size={14} /> Persona speichern</button>
+          </div>
+
+          {/* Post-Bilder */}
+          <div className="admin-card">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold">Post-Referenzbilder</h3>
+              <label className="btn-outline text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50 hover:border-emerald-400 cursor-pointer">
+                <Plus size={12} /> Bild hochladen
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handlePostImageUpload(f, "", []);
+                  }}
+                />
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Bilder die die KI frei wählen kann wenn sie zum Thema passen. Beschreibung + Kategorie-Zuordnung für bessere Auswahl.
+            </p>
+
+            {refImages.post.length > 0 ? (
+              <div className="grid grid-cols-3 gap-3">
+                {refImages.post.map((img) => (
+                  <div key={img.id} className="rounded-lg border border-border overflow-hidden group">
+                    <div className="relative">
+                      <img src={img.image_url} alt={img.description || ""} className="w-full aspect-video object-cover" />
+                      <button
+                        onClick={() => deleteRefImage(img.id)}
+                        className="absolute top-1 right-1 dw-icon-btn-destructive bg-white/80 backdrop-blur-sm !w-6 !h-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                    <div className="p-2 space-y-1.5">
+                      <input
+                        className="form-input text-xs"
+                        value={img.description || ""}
+                        onChange={(e) => {
+                          const updated = refImages.post.map(i => i.id === img.id ? { ...i, description: e.target.value } : i);
+                          setRefImages({ ...refImages, post: updated });
+                        }}
+                        onBlur={async (e) => {
+                          await fetch(`/api/tenants/${id}/images`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ action: "update_post_image", imageId: img.id, description: e.target.value, categories: img.categories || [] }),
+                          });
+                        }}
+                        placeholder="Beschreibung..."
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        {topics.map((t, ti) => {
+                          const cats = img.categories || [];
+                          const isSelected = cats.includes(t.label);
+                          return (
+                            <button
+                              key={ti}
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
+                                isSelected
+                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                                  : "bg-muted/50 text-muted-foreground/60 border border-transparent hover:border-muted-foreground/20"
+                              }`}
+                              onClick={async () => {
+                                const newCats = isSelected ? cats.filter(c => c !== t.label) : [...cats, t.label];
+                                const updated = refImages.post.map(i => i.id === img.id ? { ...i, categories: newCats } : i);
+                                setRefImages({ ...refImages, post: updated });
+                                await fetch(`/api/tenants/${id}/images`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ action: "update_post_image", imageId: img.id, description: img.description, categories: newCats }),
+                                });
+                              }}
+                            >
+                              {t.label || `Kat. ${ti}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                Noch keine Referenzbilder. Lade Bilder hoch, die die KI beim Schreiben verwenden kann.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tab: Reporting */}
       {tab === "reporting" && (
