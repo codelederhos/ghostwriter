@@ -107,6 +107,8 @@ async function updateSettings({ tenantId, settings }) {
       report_email = COALESCE($11, report_email),
       frequency_hours = COALESCE($12, frequency_hours),
       is_active = COALESCE($13, is_active),
+      billing_mode = COALESCE($14, billing_mode),
+      backlinks_enabled = COALESCE($15, backlinks_enabled),
       updated_at = NOW()
     WHERE tenant_id = $1`,
     [
@@ -115,6 +117,7 @@ async function updateSettings({ tenantId, settings }) {
       merged.image_provider, merged.image_api_key, merged.image_style_prefix,
       merged.telegram_bot_token, merged.telegram_chat_id, merged.report_email,
       merged.frequency_hours, merged.is_active,
+      merged.billing_mode, merged.backlinks_enabled,
     ]
   );
 

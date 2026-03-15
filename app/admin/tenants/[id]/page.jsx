@@ -372,6 +372,60 @@ export default function TenantDetailPage() {
       {/* Tab: Settings (API Keys) */}
       {tab === "settings" && (
         <div className="admin-card space-y-6">
+          {/* Billing Mode */}
+          <div>
+            <h3 className="font-semibold mb-3">Abrechnungsmodell</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  (settings.billing_mode || "own_key") === "platform"
+                    ? "border-emerald-400 bg-emerald-50"
+                    : "border-border hover:border-muted-foreground/30"
+                }`}
+                onClick={() => setSettings({ ...settings, billing_mode: "platform" })}
+              >
+                <p className="font-medium text-sm">Platform (All-Inclusive)</p>
+                <p className="text-xs text-muted-foreground mt-1">Code-Lederhos API Keys. Abrechnung pro Post (~€3).</p>
+                <p className="text-xs text-muted-foreground">Text + 2 Bilder + SEO inklusive.</p>
+              </button>
+              <button
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  (settings.billing_mode || "own_key") === "own_key"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/30"
+                }`}
+                onClick={() => setSettings({ ...settings, billing_mode: "own_key" })}
+              >
+                <p className="font-medium text-sm">Eigene API Keys</p>
+                <p className="text-xs text-muted-foreground mt-1">Kunde bringt eigene Keys mit.</p>
+                <p className="text-xs text-muted-foreground">Keine Zusatzkosten pro Post.</p>
+              </button>
+            </div>
+          </div>
+
+          <hr className="border-border" />
+
+          {/* Options */}
+          <div>
+            <h3 className="font-semibold mb-3">Optionen</h3>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.backlinks_enabled || false}
+                onChange={(e) => setSettings({ ...settings, backlinks_enabled: e.target.checked })}
+                className="rounded border-border w-4 h-4"
+              />
+              <div>
+                <p className="text-sm font-medium">Backlinks</p>
+                <p className="text-xs text-muted-foreground">1 Backlink zu nicht-konkurrierender Firma pro Post (SEO-Boost)</p>
+              </div>
+            </label>
+          </div>
+
+          <hr className="border-border" />
+
+          {/* API Keys — nur bei own_key sichtbar */}
+          {(settings.billing_mode || "own_key") === "own_key" && (<>
           <div>
             <h3 className="font-semibold mb-3">Text-Modell</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -416,6 +470,17 @@ export default function TenantDetailPage() {
             </div>
             <FormField label="Bild-Stil Prefix" value={settings.image_style_prefix} onChange={(v) => setSettings({ ...settings, image_style_prefix: v })} textarea placeholder="Fotorealistisch, professionell, keine KI-Gesichter..." />
           </div>
+          </>)}
+
+          {(settings.billing_mode || "own_key") === "platform" && (
+            <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+              <p className="text-sm font-medium text-emerald-800">Platform-Modus aktiv</p>
+              <p className="text-xs text-emerald-700 mt-1">
+                API Keys werden von Code-Lederhos bereitgestellt. Abrechnung: ~€3 pro Post (Text + 2 Bilder + SEO).
+                Keine eigenen Keys nötig.
+              </p>
+            </div>
+          )}
 
           <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
         </div>
