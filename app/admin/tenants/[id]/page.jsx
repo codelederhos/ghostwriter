@@ -1496,20 +1496,32 @@ export default function TenantDetailPage() {
         const days = Math.round((settings.frequency_hours || 72) / 24);
         return (
           <div className="admin-card space-y-6">
-            {/* Frequenz Slider */}
+            {/* Frequenz Slider mit schwebender Zahl */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="form-label mb-0">Frequenz</label>
-                <span className="text-sm font-semibold text-primary">Alle {days} {days === 1 ? "Tag" : "Tage"}</span>
+              <label className="form-label">Frequenz</label>
+              <div className="relative mt-2 mb-6">
+                {/* Schwebende Zahl die mit dem Thumb mitfährt */}
+                <div
+                  className="absolute -top-8 transition-all duration-150 ease-out pointer-events-none"
+                  style={{ left: `calc(${((days - 1) / 29) * 100}% - 20px + ${((days - 1) / 29) * -8}px)` }}
+                >
+                  <div className="bg-primary text-primary-foreground text-xs font-bold px-2.5 py-1 rounded-md shadow-lg whitespace-nowrap">
+                    {days === 1 ? "Jeden Tag" : `Alle ${days} Tage`}
+                  </div>
+                  <div className="w-2 h-2 bg-primary rotate-45 mx-auto -mt-1" />
+                </div>
+                <input
+                  type="range"
+                  min={1} max={30} step={1}
+                  value={days}
+                  onChange={(e) => setSettings({ ...settings, frequency_hours: parseInt(e.target.value) * 24 })}
+                  className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                  style={{
+                    background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${((days - 1) / 29) * 100}%, hsl(var(--muted)) ${((days - 1) / 29) * 100}%, hsl(var(--muted)) 100%)`
+                  }}
+                />
               </div>
-              <input
-                type="range"
-                min={1} max={30} step={1}
-                value={days}
-                onChange={(e) => setSettings({ ...settings, frequency_hours: parseInt(e.target.value) * 24 })}
-                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground/50 mt-1">
+              <div className="flex justify-between text-[10px] text-muted-foreground/50 -mt-4">
                 <span>Täglich</span>
                 <span>Wöchentlich</span>
                 <span>Monatlich</span>
