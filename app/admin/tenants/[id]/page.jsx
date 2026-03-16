@@ -1660,6 +1660,38 @@ export default function TenantDetailPage() {
 
             <hr className="border-border" />
 
+            {/* Post-Länge */}
+            <div>
+              <label className="form-label mb-2 block">Post-Länge</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { key: "short",    label: "Kurz",        sub: "300–500 Wörter" },
+                  { key: "medium",   label: "Standard",    sub: "500–800 Wörter" },
+                  { key: "long",     label: "Lang",        sub: "800–1200 Wörter" },
+                  { key: "detailed", label: "Ausführlich", sub: "1200–1800 Wörter" },
+                ].map(({ key, label, sub }) => {
+                  const active = (settings.post_length || "medium") === key;
+                  return (
+                    <label
+                      key={key}
+                      className={`radio-option flex flex-col items-center gap-1 p-3 rounded-lg border-2 cursor-pointer text-center transition-all ${
+                        active ? "radio-option-active border-emerald-400 bg-emerald-50" : "border-border hover:border-border/80"
+                      }`}
+                      onClick={() => setSettings({ ...settings, post_length: key })}
+                    >
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mb-0.5 ${active ? "border-emerald-500" : "border-gray-300"}`}>
+                        <span className={`w-2 h-2 rounded-full transition-all ${active ? "bg-emerald-500 scale-100" : "bg-transparent scale-0"}`} />
+                      </span>
+                      <span className="text-sm font-medium">{label}</span>
+                      <span className="text-[10px] text-muted-foreground">{sub}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <hr className="border-border" />
+
             {/* Autopilot Radio */}
             <div>
               <label className="form-label">Autopilot</label>
@@ -1738,7 +1770,7 @@ export default function TenantDetailPage() {
                 <img src={postPreview.image_url} alt="" className="w-full h-48 object-cover rounded-lg" />
               </div>
             )}
-            <div className="p-6 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: postPreview.blog_body || "<p class='text-muted-foreground'>Kein Inhalt</p>" }} />
+            <div className="p-6 blog-prose" dangerouslySetInnerHTML={{ __html: postPreview.blog_body || "<p class='text-muted-foreground'>Kein Inhalt</p>" }} />
             <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20 rounded-b-xl">
               <span className="text-xs text-muted-foreground">{new Date(postPreview.created_at).toLocaleString("de")}</span>
               <a href={`/${tenant?.slug}/${postPreview.language}/blog/${postPreview.blog_slug}`} target="_blank" className="btn-primary text-xs">
