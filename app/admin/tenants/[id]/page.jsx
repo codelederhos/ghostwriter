@@ -57,6 +57,18 @@ export default function TenantDetailPage() {
 
   useEffect(() => { loadTenant(); loadModelLabels(); }, [id]);
 
+  // ESC schliesst alle offenen Modals
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key !== "Escape") return;
+      if (postPreview) { setPostPreview(null); return; }
+      if (showTestModal && !testRunning) { setShowTestModal(false); return; }
+      if (deleteConfirm) { setDeleteConfirm(null); return; }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [postPreview, showTestModal, testRunning, deleteConfirm]);
+
   async function loadModelLabels() {
     try {
       const res = await fetch("/api/admin/config");
@@ -1399,12 +1411,12 @@ export default function TenantDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right text-muted-foreground hidden lg:table-cell">{p.image_count ?? "—"}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          p.status === "published" ? "bg-emerald-100 text-emerald-700"
-                          : p.status === "draft" ? "bg-amber-100 text-amber-700"
-                          : p.status === "failed" ? "bg-red-100 text-red-700"
-                          : "bg-muted text-muted-foreground"
-                        }`}>{p.status}</span>
+                        <span className={
+                          p.status === "published" ? "badge badge-success"
+                          : p.status === "draft" ? "badge badge-warning"
+                          : p.status === "failed" ? "badge badge-error"
+                          : "badge badge-neutral"
+                        }>{p.status}</span>
                       </td>
                       <td className="px-4 py-3 text-right text-muted-foreground text-xs whitespace-nowrap">
                         {new Date(p.created_at).toLocaleDateString("de")}
@@ -1427,11 +1439,8 @@ export default function TenantDetailPage() {
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-xs text-muted-foreground">{postPreview.category}</span>
                       {postPreview.angle && <span className="text-xs text-muted-foreground">· {postPreview.angle}</span>}
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        postPreview.status === "published" ? "bg-emerald-100 text-emerald-700"
-                        : "bg-amber-100 text-amber-700"
-                      }`}>{postPreview.status}</span>
-                      {postPreview.is_test && <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">Test</span>}
+                      <span className={postPreview.status === "published" ? "badge badge-success" : postPreview.status === "failed" ? "badge badge-error" : "badge badge-warning"}>{postPreview.status}</span>
+                      {postPreview.is_test && <span className="badge" style={{background:"#ede9fe",color:"#7c3aed"}}>Test</span>}
                     </div>
                   </div>
                   <button onClick={() => setPostPreview(null)} className="text-muted-foreground hover:text-foreground text-2xl leading-none w-8 h-8 flex items-center justify-center">&times;</button>
