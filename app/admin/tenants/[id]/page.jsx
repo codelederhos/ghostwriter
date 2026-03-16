@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X } from "lucide-react";
 import Link from "next/link";
@@ -33,6 +34,8 @@ export default function TenantDetailPage() {
   const [msg, setMsg] = useState("");
   const [msgType, setMsgType] = useState("success"); // "success" | "error"
   const [refImages, setRefImages] = useState({ persona: [], post: [] });
+  const [tenantPosts, setTenantPosts] = useState(null);
+  const [postPreview, setPostPreview] = useState(null);
   const [billingData, setBillingData] = useState(null);
   const [invoiceStart, setInvoiceStart] = useState("");
   const [invoiceEnd, setInvoiceEnd] = useState("");
@@ -115,6 +118,12 @@ export default function TenantDetailPage() {
     const res = await fetch(`/api/tenants/${id}/billing`);
     const data = await res.json();
     setBillingData(data);
+  }
+
+  async function loadTenantPosts() {
+    const res = await fetch(`/api/admin/posts?tenantId=${id}`);
+    const data = await res.json();
+    setTenantPosts(data.posts || []);
   }
 
   async function createInvoice() {
@@ -318,6 +327,7 @@ export default function TenantDetailPage() {
     { key: "ctas", label: "CTAs" },
     { key: "topics", label: "Themen" },
     { key: "images", label: "Bilder" },
+    { key: "posts", label: "Posts" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
     { key: "users", label: "Zugänge" },
@@ -361,7 +371,7 @@ export default function TenantDetailPage() {
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => { setTab(t.key); if (t.key === "users") loadUsers(); if (t.key === "images") loadRefImages(); if (t.key === "billing") loadBilling(); }}
+            onClick={() => { setTab(t.key); if (t.key === "users") loadUsers(); if (t.key === "images") loadRefImages(); if (t.key === "billing") loadBilling(); if (t.key === "posts") loadTenantPosts(); }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
@@ -1326,6 +1336,127 @@ export default function TenantDetailPage() {
           </div>
 
           <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
+        </div>
+      )}
+
+      {/* Tab: Posts */}
+      {tab === "posts" && (
+        <div className="space-y-4">
+          {tenantPosts === null ? (
+            <div className="admin-card animate-pulse space-y-3">
+              {[1,2,3,4].map(i => <div key={i} className="h-14 bg-muted rounded" />)}
+            </div>
+          ) : tenantPosts.length === 0 ? (
+            <div className="admin-card text-center text-muted-foreground py-10">Noch keine Posts.</div>
+          ) : (
+            <div className="admin-card p-0 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground w-10"></th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Titel</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Kategorie</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Sprache</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Wörter</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Bilder</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Datum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tenantPosts.map((p, i) => (
+                    <tr
+                      key={p.id}
+                      onClick={async () => {
+                        const r = await fetch(`/api/admin/posts/${p.id}`);
+                        const d = await r.json();
+                        setPostPreview(d.post);
+                      }}
+                      className={`border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}
+                    >
+                      <td className="px-4 py-3">
+                        {p.image_url ? (
+                          <img src={p.image_url} alt="" className="w-8 h-8 rounded object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-muted" />
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-medium text-foreground line-clamp-1">{p.blog_title}</span>
+                        {p.is_test && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">Test</span>}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{p.category}</td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase">{p.language}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted-foreground hidden lg:table-cell">
+                        {p.word_count != null ? p.word_count.toLocaleString("de") : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted-foreground hidden lg:table-cell">{p.image_count ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          p.status === "published" ? "bg-emerald-100 text-emerald-700"
+                          : p.status === "draft" ? "bg-amber-100 text-amber-700"
+                          : p.status === "failed" ? "bg-red-100 text-red-700"
+                          : "bg-muted text-muted-foreground"
+                        }`}>{p.status}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted-foreground text-xs whitespace-nowrap">
+                        {new Date(p.created_at).toLocaleDateString("de")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Post Preview Modal */}
+          {postPreview && typeof document !== "undefined" && createPortal(
+            <div className="fixed inset-0 z-[9998] flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={() => setPostPreview(null)}>
+              <div className="bg-background rounded-xl shadow-2xl w-full max-w-3xl my-8" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex items-start justify-between p-6 border-b border-border">
+                  <div className="flex-1 pr-4">
+                    <h2 className="text-lg font-semibold">{postPreview.blog_title}</h2>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="text-xs text-muted-foreground">{postPreview.category}</span>
+                      {postPreview.angle && <span className="text-xs text-muted-foreground">· {postPreview.angle}</span>}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        postPreview.status === "published" ? "bg-emerald-100 text-emerald-700"
+                        : "bg-amber-100 text-amber-700"
+                      }`}>{postPreview.status}</span>
+                      {postPreview.is_test && <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">Test</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => setPostPreview(null)} className="text-muted-foreground hover:text-foreground text-2xl leading-none w-8 h-8 flex items-center justify-center">&times;</button>
+                </div>
+                {/* Titelbild */}
+                {postPreview.image_url && (
+                  <div className="px-6 pt-4">
+                    <img src={postPreview.image_url} alt="" className="w-full h-48 object-cover rounded-lg" />
+                  </div>
+                )}
+                {/* Content HTML */}
+                <div
+                  className="p-6 prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: postPreview.blog_content || "<p class='text-muted-foreground'>Kein Inhalt</p>" }}
+                />
+                {/* Footer */}
+                <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20 rounded-b-xl">
+                  <span className="text-xs text-muted-foreground">{new Date(postPreview.created_at).toLocaleString("de")}</span>
+                  <a
+                    href={`/${tenant?.slug}/${postPreview.language}/blog/${postPreview.blog_slug}`}
+                    target="_blank"
+                    className="btn-primary text-xs"
+                  >
+                    Im Blog öffnen
+                  </a>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
         </div>
       )}
 
