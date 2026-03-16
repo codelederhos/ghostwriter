@@ -133,10 +133,15 @@ export default function TenantDetailPage() {
   }
 
   async function loadTenantPosts() {
-    if (tenantPosts !== null) return; // bereits geladen, nicht neu fetchen
-    const res = await fetch(`/api/admin/posts?tenantId=${id}`);
-    const data = await res.json();
-    setTenantPosts(data.posts || []);
+    if (tenantPosts !== null) return;
+    try {
+      const res = await fetch(`/api/admin/posts?tenantId=${id}`);
+      const data = await res.json();
+      setTenantPosts(data.posts || []);
+    } catch {
+      setTenantPosts([]);
+      showMsg("Posts konnten nicht geladen werden", "error");
+    }
   }
 
   async function loadPostPreview(postId) {
@@ -556,7 +561,7 @@ export default function TenantDetailPage() {
               <>
                 <div className="divide-y divide-border/30">
                   {billingData.openPosts.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between py-2 px-2 rounded hover:bg-amber-50/50">
+                    <div key={p.id} className="flex items-center justify-between py-2 px-2 rounded hover:bg-amber-50/50 cursor-pointer" onClick={() => loadPostPreview(p.id)}>
                       <div>
                         <p className="text-sm font-medium">
                           {p.blog_title}
@@ -1428,49 +1433,6 @@ export default function TenantDetailPage() {
             </div>
           )}
 
-          {/* Post Preview Modal */}
-          {postPreview && typeof document !== "undefined" && createPortal(
-            <div className="fixed inset-0 z-[9998] flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={() => setPostPreview(null)}>
-              <div className="bg-background rounded-xl shadow-2xl w-full max-w-3xl my-8" onClick={e => e.stopPropagation()}>
-                {/* Header */}
-                <div className="flex items-start justify-between p-6 border-b border-border">
-                  <div className="flex-1 pr-4">
-                    <h2 className="text-lg font-semibold">{postPreview.blog_title}</h2>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-xs text-muted-foreground">{postPreview.category}</span>
-                      {postPreview.angle && <span className="text-xs text-muted-foreground">· {postPreview.angle}</span>}
-                      <span className={postPreview.status === "published" ? "badge badge-success" : postPreview.status === "failed" ? "badge badge-error" : "badge badge-warning"}>{postPreview.status}</span>
-                      {postPreview.is_test && <span className="badge" style={{background:"#ede9fe",color:"#7c3aed"}}>Test</span>}
-                    </div>
-                  </div>
-                  <button onClick={() => setPostPreview(null)} className="text-muted-foreground hover:text-foreground text-2xl leading-none w-8 h-8 flex items-center justify-center">&times;</button>
-                </div>
-                {/* Titelbild */}
-                {postPreview.image_url && (
-                  <div className="px-6 pt-4">
-                    <img src={postPreview.image_url} alt="" className="w-full h-48 object-cover rounded-lg" />
-                  </div>
-                )}
-                {/* Content HTML */}
-                <div
-                  className="p-6 prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: postPreview.blog_content || "<p class='text-muted-foreground'>Kein Inhalt</p>" }}
-                />
-                {/* Footer */}
-                <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20 rounded-b-xl">
-                  <span className="text-xs text-muted-foreground">{new Date(postPreview.created_at).toLocaleString("de")}</span>
-                  <a
-                    href={`/${tenant?.slug}/${postPreview.language}/blog/${postPreview.blog_slug}`}
-                    target="_blank"
-                    className="btn-primary text-xs"
-                  >
-                    Im Blog öffnen
-                  </a>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
         </div>
       )}
 
@@ -1754,6 +1716,39 @@ export default function TenantDetailPage() {
           </div>
         );
       })()}
+
+      {/* Post Preview Modal — global, öffnet aus jedem Tab */}
+      {postPreview && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9998] flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={() => setPostPreview(null)}>
+          <div className="bg-background rounded-xl shadow-2xl w-full max-w-3xl my-8" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between p-6 border-b border-border">
+              <div className="flex-1 pr-4">
+                <h2 className="text-lg font-semibold">{postPreview.blog_title}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="text-xs text-muted-foreground">{postPreview.category}</span>
+                  {postPreview.angle && <span className="text-xs text-muted-foreground">· {postPreview.angle}</span>}
+                  <span className={postPreview.status === "published" ? "badge badge-success" : postPreview.status === "failed" ? "badge badge-error" : "badge badge-warning"}>{postPreview.status}</span>
+                  {postPreview.is_test && <span className="badge" style={{background:"#ede9fe",color:"#7c3aed"}}>Test</span>}
+                </div>
+              </div>
+              <button onClick={() => setPostPreview(null)} className="text-muted-foreground hover:text-foreground text-2xl leading-none w-8 h-8 flex items-center justify-center">&times;</button>
+            </div>
+            {postPreview.image_url && (
+              <div className="px-6 pt-4">
+                <img src={postPreview.image_url} alt="" className="w-full h-48 object-cover rounded-lg" />
+              </div>
+            )}
+            <div className="p-6 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: postPreview.blog_content || "<p class='text-muted-foreground'>Kein Inhalt</p>" }} />
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20 rounded-b-xl">
+              <span className="text-xs text-muted-foreground">{new Date(postPreview.created_at).toLocaleString("de")}</span>
+              <a href={`/${tenant?.slug}/${postPreview.language}/blog/${postPreview.blog_slug}`} target="_blank" className="btn-primary text-xs">
+                Im Blog öffnen
+              </a>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
