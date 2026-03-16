@@ -20,11 +20,11 @@ export async function GET(req) {
   const countCols = `
     array_length(
       string_to_array(
-        trim(regexp_replace(blog_content, '<[^>]+>', ' ', 'g')),
+        trim(regexp_replace(blog_body, '<[^>]+>', ' ', 'g')),
         ' '
       ), 1
     ) as word_count,
-    (length(blog_content) - length(replace(blog_content, '<img ', ''))) / 5 as image_count`;
+    (length(blog_body) - length(replace(blog_body, '<img ', ''))) / 5 as image_count`;
 
   let sql, args;
   if (tenantId) {

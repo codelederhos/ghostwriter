@@ -1738,7 +1738,7 @@ export default function TenantDetailPage() {
                 <img src={postPreview.image_url} alt="" className="w-full h-48 object-cover rounded-lg" />
               </div>
             )}
-            <div className="p-6 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: postPreview.blog_content || "<p class='text-muted-foreground'>Kein Inhalt</p>" }} />
+            <div className="p-6 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: postPreview.blog_body || "<p class='text-muted-foreground'>Kein Inhalt</p>" }} />
             <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20 rounded-b-xl">
               <span className="text-xs text-muted-foreground">{new Date(postPreview.created_at).toLocaleString("de")}</span>
               <a href={`/${tenant?.slug}/${postPreview.language}/blog/${postPreview.blog_slug}`} target="_blank" className="btn-primary text-xs">
