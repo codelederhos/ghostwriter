@@ -25,7 +25,7 @@ body {
   .admin-sidebar { @apply fixed left-0 top-0 bottom-0 w-64 bg-foreground text-white p-6 flex flex-col; }
   .admin-sidebar a { @apply block px-4 py-2.5 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/10 transition-colors; }
   .admin-sidebar a.active { @apply bg-white/15 text-white font-medium; }
-  .admin-main { @apply ml-64 p-8 min-h-screen; }
+  .admin-main { @apply md:ml-64 pt-14 md:pt-0 p-4 md:p-8 min-h-screen; }
   .admin-card { @apply bg-card border border-border rounded-xl p-6 shadow-sm; }
   .admin-title { @apply text-2xl font-bold mb-6; }
 
