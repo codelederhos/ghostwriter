@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X } from "lucide-react";
 import Link from "next/link";
@@ -1494,34 +1494,57 @@ export default function TenantDetailPage() {
       {/* Tab: Scheduling */}
       {tab === "scheduling" && (() => {
         const days = Math.round((settings.frequency_hours || 72) / 24);
+        const pct = ((days - 1) / 29) * 100;
         return (
           <div className="admin-card space-y-6">
-            {/* Frequenz Slider mit schwebender Zahl */}
+            {/* Frequenz Slider smooth + animierte Zahl */}
             <div>
               <label className="form-label">Frequenz</label>
               <div className="relative mt-2 mb-6">
-                {/* Schwebende Zahl die mit dem Thumb mitfährt */}
+                {/* Schwebende Tooltip-Blase */}
                 <div
-                  className="absolute -top-8 transition-all duration-150 ease-out pointer-events-none"
-                  style={{ left: `calc(${((days - 1) / 29) * 100}% - 20px + ${((days - 1) / 29) * -8}px)` }}
+                  className="absolute -top-9 pointer-events-none"
+                  style={{
+                    left: `${pct}%`,
+                    transform: "translateX(-50%)",
+                    transition: "left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)"
+                  }}
                 >
-                  <div className="bg-primary text-primary-foreground text-xs font-bold px-2.5 py-1 rounded-md shadow-lg whitespace-nowrap">
-                    {days === 1 ? "Jeden Tag" : `Alle ${days} Tage`}
+                  <div className="bg-primary text-primary-foreground text-xs font-bold px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap"
+                    style={{ transition: "transform 0.2s ease" }}>
+                    <SliderCount value={days} />
                   </div>
-                  <div className="w-2 h-2 bg-primary rotate-45 mx-auto -mt-1" />
+                  <div className="w-0 h-0 mx-auto border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-primary" />
+                </div>
+                {/* Custom Slider Track */}
+                <div className="relative h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="absolute h-full rounded-full bg-primary"
+                    style={{
+                      width: `${pct}%`,
+                      transition: "width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)"
+                    }}
+                  />
                 </div>
                 <input
                   type="range"
                   min={1} max={30} step={1}
                   value={days}
                   onChange={(e) => setSettings({ ...settings, frequency_hours: parseInt(e.target.value) * 24 })}
-                  className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                  className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
+                  style={{ top: "0" }}
+                />
+                {/* Thumb */}
+                <div
+                  className="absolute top-[-3px] w-4 h-4 rounded-full bg-white border-[3px] border-primary shadow-md pointer-events-none"
                   style={{
-                    background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${((days - 1) / 29) * 100}%, hsl(var(--muted)) ${((days - 1) / 29) * 100}%, hsl(var(--muted)) 100%)`
+                    left: `${pct}%`,
+                    transform: "translateX(-50%)",
+                    transition: "left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)"
                   }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-muted-foreground/50 -mt-4">
+              <div className="flex justify-between text-[10px] text-muted-foreground/50 mt-1">
                 <span>Täglich</span>
                 <span>Wöchentlich</span>
                 <span>Monatlich</span>
@@ -1608,6 +1631,31 @@ function ToggleSwitch({ checked, onChange }) {
       />
     </button>
   );
+}
+
+function SliderCount({ value }) {
+  const [display, setDisplay] = useState(value);
+  const prevRef = useRef(value);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const from = prevRef.current;
+    const to = value;
+    if (from === to) return;
+    prevRef.current = to;
+    const start = performance.now();
+    const dur = 300;
+    const tick = (now) => {
+      const t = Math.min((now - start) / dur, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(from + (to - from) * ease));
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => rafRef.current && cancelAnimationFrame(rafRef.current);
+  }, [value]);
+
+  return <>{display === 1 ? "Jeden Tag" : `Alle ${display} Tage`}</>;
 }
 
 function FormField({ label, value, onChange, placeholder, type = "text", textarea = false }) {
