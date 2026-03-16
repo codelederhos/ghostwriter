@@ -1749,36 +1749,9 @@ export default function TenantDetailPage() {
         );
       })()}
 
-      {/* Post Preview Modal — global, öffnet aus jedem Tab */}
+      {/* Post Preview Modal — global, 2 Tabs: Post & Blog */}
       {postPreview && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[9998] flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={() => setPostPreview(null)}>
-          <div className="bg-background rounded-xl shadow-2xl w-full max-w-3xl my-8" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between p-6 border-b border-border">
-              <div className="flex-1 pr-4">
-                <h2 className="text-lg font-semibold">{postPreview.blog_title}</h2>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-xs text-muted-foreground">{postPreview.category}</span>
-                  {postPreview.angle && <span className="text-xs text-muted-foreground">· {postPreview.angle}</span>}
-                  <span className={postPreview.status === "published" ? "badge badge-success" : postPreview.status === "failed" ? "badge badge-error" : "badge badge-warning"}>{postPreview.status}</span>
-                  {postPreview.is_test && <span className="badge" style={{background:"#ede9fe",color:"#7c3aed"}}>Test</span>}
-                </div>
-              </div>
-              <button onClick={() => setPostPreview(null)} className="text-muted-foreground hover:text-foreground text-2xl leading-none w-8 h-8 flex items-center justify-center">&times;</button>
-            </div>
-            {postPreview.image_url && (
-              <div className="px-6 pt-4">
-                <img src={postPreview.image_url} alt="" className="w-full h-48 object-cover rounded-lg" />
-              </div>
-            )}
-            <div className="p-6 blog-prose" dangerouslySetInnerHTML={{ __html: postPreview.blog_body || "<p class='text-muted-foreground'>Kein Inhalt</p>" }} />
-            <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20 rounded-b-xl">
-              <span className="text-xs text-muted-foreground">{new Date(postPreview.created_at).toLocaleString("de")}</span>
-              <a href={`/${tenant?.slug}/${postPreview.language}/blog/${postPreview.blog_slug}`} target="_blank" className="btn-primary text-xs">
-                Im Blog öffnen
-              </a>
-            </div>
-          </div>
-        </div>,
+        <PostPreviewModal post={postPreview} tenantSlug={tenant?.slug} onClose={() => setPostPreview(null)} />,
         document.body
       )}
     </div>
@@ -1828,6 +1801,76 @@ function SliderCount({ value }) {
   }, [value]);
 
   return <>{display === 1 ? "Jeden Tag" : `Alle ${display} Tage`}</>;
+}
+
+function PostPreviewModal({ post, tenantSlug, onClose }) {
+  const [tab, setTab] = useState("blog");
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-background rounded-xl shadow-2xl w-full max-w-3xl my-8" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-start justify-between p-6 pb-0">
+          <div className="flex-1 pr-4">
+            <h2 className="text-lg font-semibold">{post.blog_title}</h2>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className="text-xs text-muted-foreground">{post.category}</span>
+              {post.angle && <span className="text-xs text-muted-foreground">· {post.angle}</span>}
+              <span className={post.status === "published" ? "badge badge-success" : post.status === "failed" ? "badge badge-error" : "badge badge-warning"}>{post.status}</span>
+              {post.is_test && <span className="badge" style={{background:"#ede9fe",color:"#7c3aed"}}>Test</span>}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-2xl leading-none w-8 h-8 flex items-center justify-center">&times;</button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-0 px-6 mt-4 border-b border-border">
+          {[{ key: "blog", label: "📝 Blog" }, { key: "post", label: "📣 Post / GBP" }].map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            >{t.label}</button>
+          ))}
+        </div>
+
+        {/* Tab: Blog */}
+        {tab === "blog" && (
+          <>
+            {post.image_url && (
+              <div className="px-6 pt-4">
+                <img src={post.image_url} alt="" className="w-full h-52 object-cover rounded-xl" />
+              </div>
+            )}
+            <div className="p-6 blog-prose" dangerouslySetInnerHTML={{ __html: post.blog_body || "<p class='text-muted-foreground'>Kein Inhalt</p>" }} />
+          </>
+        )}
+
+        {/* Tab: Post / GBP */}
+        {tab === "post" && (
+          <div className="p-6 space-y-4">
+            {post.image_url_2 && (
+              <img src={post.image_url_2} alt="" className="w-full max-w-xs mx-auto rounded-xl object-cover aspect-square block" />
+            )}
+            {!post.image_url_2 && post.image_url && (
+              <img src={post.image_url} alt="" className="w-full max-w-xs mx-auto rounded-xl object-cover aspect-square block" />
+            )}
+            <div className="bg-muted/40 rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap">
+              {post.gbp_text || post.blog_title}
+            </div>
+            <p className="text-xs text-muted-foreground text-center">So sieht es auf Google Business / Social aus</p>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20 rounded-b-xl">
+          <span className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleString("de")}</span>
+          <a href={`/${tenantSlug}/${post.language}/blog/${post.blog_slug}`} target="_blank" className="btn-primary text-xs">
+            Im Blog öffnen
+          </a>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function FormField({ label, value, onChange, placeholder, type = "text", textarea = false }) {

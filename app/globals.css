@@ -61,6 +61,44 @@ body {
   .blog-prose a { @apply text-primary underline underline-offset-2; }
   .blog-prose strong { @apply font-semibold text-foreground; }
 
+  /* Blog — FAQ Accordion */
+  .blog-prose details { @apply border border-border rounded-lg mb-2 overflow-hidden; }
+  .blog-prose details summary {
+    @apply px-4 py-3 font-medium cursor-pointer select-none bg-muted/40 hover:bg-muted/70 transition-colors;
+    list-style: none;
+  }
+  .blog-prose details summary::-webkit-details-marker { display: none; }
+  .blog-prose details summary::after { content: "+"; @apply float-right text-muted-foreground font-bold; }
+  .blog-prose details[open] summary::after { content: "−"; }
+  .blog-prose details > p, .blog-prose details > div { @apply px-4 py-3; }
+
+  /* Blog — Quellen-Pills */
+  .blog-prose a.source-pill, .blog-prose .source-pill {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium no-underline;
+    @apply bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors;
+  }
+  .blog-prose .backlink-note { @apply text-sm text-muted-foreground border-l-2 border-primary/30 pl-3 italic; }
+
+  /* Blog — Vergleichstabelle */
+  .blog-prose table.comparison-table, .blog-prose table {
+    @apply w-full text-sm border-collapse mb-6;
+  }
+  .blog-prose table th {
+    @apply px-3 py-2 text-left font-semibold bg-muted text-foreground border border-border;
+  }
+  .blog-prose table td {
+    @apply px-3 py-2 border border-border text-foreground/80;
+  }
+  .blog-prose table tr:nth-child(even) td { @apply bg-muted/30; }
+
+  /* Blog — Artikel-Bild */
+  .blog-prose figure.article-figure {
+    @apply my-6 rounded-xl overflow-hidden;
+  }
+  .blog-prose figure.article-figure img {
+    @apply w-full h-auto object-cover;
+  }
+
   /* ── Dashboard Widgets ──────────────────────────────── */
 
   .dw-root { position: relative; }

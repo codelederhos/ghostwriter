@@ -10,9 +10,9 @@ export async function GET(req, { params }) {
 
   const { postId } = params;
   const { rows } = await query(
-    `SELECT id, blog_title, blog_slug, blog_body,
+    `SELECT id, blog_title, blog_slug, blog_body, gbp_text,
             language, category, angle, status, is_test,
-            image_url, created_at, published_at
+            image_url, image_url_2, created_at, published_at
      FROM ghostwriter_posts WHERE id = $1`,
     [postId]
   );
