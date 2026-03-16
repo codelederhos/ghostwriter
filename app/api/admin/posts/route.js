@@ -11,14 +11,25 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const tenantId = searchParams.get("tenantId");
 
+  // Wörter + Bilder direkt in SQL zählen — kein HTML Transfer für Counts
+  const baseCols = `
+    gp.id, gp.blog_title, gp.blog_slug, gp.language, gp.category, gp.angle,
+    gp.status, gp.is_test, gp.created_at, gp.published_at, gp.image_url,
+    t.name as tenant_name, t.slug as tenant_slug`;
+
+  const countCols = `
+    array_length(
+      string_to_array(
+        trim(regexp_replace(blog_content, '<[^>]+>', ' ', 'g')),
+        ' '
+      ), 1
+    ) as word_count,
+    (length(blog_content) - length(replace(blog_content, '<img ', ''))) / 5 as image_count`;
+
   let sql, args;
   if (tenantId) {
     sql = `
-      SELECT gp.id, gp.blog_title, gp.blog_slug, gp.language, gp.category, gp.angle,
-             gp.status, gp.is_test, gp.created_at, gp.published_at,
-             gp.blog_content, gp.image_url,
-             length(gp.blog_content) as content_length,
-             t.name as tenant_name, t.slug as tenant_slug
+      SELECT ${baseCols}, ${countCols}
       FROM ghostwriter_posts gp
       JOIN tenants t ON t.id = gp.tenant_id
       WHERE gp.tenant_id = $1
@@ -28,10 +39,7 @@ export async function GET(req) {
     args = [tenantId];
   } else {
     sql = `
-      SELECT gp.id, gp.blog_title, gp.blog_slug, gp.language, gp.category,
-             gp.status, gp.is_test, gp.created_at, gp.published_at,
-             gp.image_url,
-             t.name as tenant_name, t.slug as tenant_slug
+      SELECT ${baseCols}
       FROM ghostwriter_posts gp
       JOIN tenants t ON t.id = gp.tenant_id
       ORDER BY gp.created_at DESC
@@ -40,18 +48,6 @@ export async function GET(req) {
     args = [];
   }
 
-  const { rows } = await query(sql, args);
-
-  // Wörter zählen + Bilder zählen aus HTML
-  const posts = rows.map(p => {
-    const wordCount = p.blog_content
-      ? p.blog_content.replace(/<[^>]*>/g, " ").trim().split(/\s+/).filter(Boolean).length
-      : null;
-    const imageCount = p.blog_content
-      ? (p.blog_content.match(/<img /g) || []).length
-      : null;
-    return { ...p, blog_content: undefined, word_count: wordCount, image_count: imageCount };
-  });
-
+  const { rows: posts } = await query(sql, args);
   return NextResponse.json({ posts });
 }

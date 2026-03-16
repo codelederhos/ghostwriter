@@ -121,9 +121,18 @@ export default function TenantDetailPage() {
   }
 
   async function loadTenantPosts() {
+    if (tenantPosts !== null) return; // bereits geladen, nicht neu fetchen
     const res = await fetch(`/api/admin/posts?tenantId=${id}`);
     const data = await res.json();
     setTenantPosts(data.posts || []);
+  }
+
+  async function loadPostPreview(postId) {
+    setPostPreview(null); // loading state: Modal öffnet sich leer bis Daten da
+    const res = await fetch(`/api/admin/posts/${postId}`);
+    const data = await res.json();
+    if (data.post) setPostPreview(data.post);
+    else showMsg("Post konnte nicht geladen werden", "error");
   }
 
   async function createInvoice() {
@@ -1367,11 +1376,7 @@ export default function TenantDetailPage() {
                   {tenantPosts.map((p, i) => (
                     <tr
                       key={p.id}
-                      onClick={async () => {
-                        const r = await fetch(`/api/admin/posts/${p.id}`);
-                        const d = await r.json();
-                        setPostPreview(d.post);
-                      }}
+                      onClick={() => loadPostPreview(p.id)}
                       className={`border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}
                     >
                       <td className="px-4 py-3">
