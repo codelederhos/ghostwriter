@@ -65,6 +65,8 @@ export default function SettingsPage() {
       <h1 className="admin-title">Settings</h1>
 
       <div className="space-y-6">
+        {/* Modelle — nebeneinander */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
         {/* Empfohlene Modelle */}
         <div className="admin-card">
           <h2 className="text-lg font-semibold mb-2">Empfohlene Modelle</h2>
@@ -120,7 +122,7 @@ export default function SettingsPage() {
                 { key: "openai", label: "OpenAI Images", placeholder: "z.B. gpt-image-1 oder dall-e-3" },
                 { key: "flux", label: "Flux (fal.ai)", placeholder: "z.B. fal-ai/flux/schnell" },
               ].map(({ key, label, placeholder }) => (
-                <div key={key} className="grid grid-cols-[140px_1fr_160px] gap-3 items-center">
+                <div key={key} className="grid grid-cols-[120px_1fr_120px] gap-2 items-center">
                   <span className="text-sm font-medium">{label}</span>
                   <input
                     className="form-input text-sm font-mono"
@@ -158,6 +160,7 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+        </div>{/* end grid */}
 
         {/* Features */}
         <div className="admin-card">
