@@ -8,7 +8,7 @@ export async function generateMetadata({ params }) {
   const { rows: [t] } = await query("SELECT id FROM tenants WHERE slug = $1", [tenant]);
   if (!t) return {};
   const { rows: [post] } = await query(
-    "SELECT blog_title, blog_title_tag, blog_meta_description, image_url FROM ghostwriter_posts WHERE tenant_id = $1 AND language = $2 AND blog_slug = $3 AND status = 'published'",
+    "SELECT blog_title, blog_title_tag, blog_meta_description, image_url FROM ghostwriter_posts WHERE tenant_id = $1 AND language = $2 AND blog_slug = $3 AND status IN ('published', 'draft')",
     [t.id, lang, slug]
   );
   if (!post) return {};
@@ -37,7 +37,7 @@ export default async function BlogPostPage({ params }) {
   if (!t) notFound();
 
   const { rows: [post] } = await query(
-    "SELECT * FROM ghostwriter_posts WHERE tenant_id = $1 AND language = $2 AND blog_slug = $3 AND status = 'published'",
+    "SELECT * FROM ghostwriter_posts WHERE tenant_id = $1 AND language = $2 AND blog_slug = $3 AND status IN ('published', 'draft')",
     [t.id, lang, slug]
   );
   if (!post) notFound();
@@ -106,6 +106,13 @@ export default async function BlogPostPage({ params }) {
             </Link>
           </div>
         </header>
+
+        {/* Draft-Banner */}
+        {post.status === "draft" && (
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5 text-center">
+            <span className="text-sm font-medium text-amber-800">Vorschau — dieser Artikel ist noch nicht veröffentlicht</span>
+          </div>
+        )}
 
         {/* Article */}
         <article className="max-w-3xl mx-auto px-6 py-12">
