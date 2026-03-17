@@ -36,14 +36,21 @@ export async function GET(req, { params }) {
   const testDiscount = (pricing.test_discount_percent ?? 60) / 100;
   let openTotal = 0;
   const openPosts = rawPosts.map(p => {
-    const calculated_price = p.is_test
-      ? Math.round(pricing.post_price_cents * (1 - testDiscount))
-      : pricing.post_price_cents;
+    // Historischer Preis aus cost_cents — nur Fallback auf aktuellen Preis wenn nicht gesetzt (alte Posts)
+    const calculated_price = p.cost_cents != null
+      ? p.cost_cents
+      : p.is_test
+        ? Math.round(pricing.post_price_cents * (1 - testDiscount))
+        : pricing.post_price_cents;
     openTotal += calculated_price;
     return { ...p, calculated_price };
   });
 
-  return NextResponse.json({ pricing, periods, openPosts, openTotal });
+  // Mitgliedsbeitrag zur offenen Summe addieren (einmalig pro aktueller Periode)
+  const membershipCents = pricing.membership_monthly_cents || 0;
+  openTotal += membershipCents;
+
+  return NextResponse.json({ pricing, periods, openPosts, openTotal, membershipCents });
 }
 
 export async function POST(req, { params }) {

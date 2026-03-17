@@ -626,6 +626,14 @@ export default function TenantDetailPage() {
                     </div>
                   ))}
                 </div>
+                {billingData.membershipCents > 0 && (
+                  <div className="flex items-center justify-between py-2 px-2 text-muted-foreground">
+                    <span className="text-sm">Mitgliedsbeitrag (Monat)</span>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                      {(billingData.membershipCents / 100).toFixed(2)} €
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
                   <span className="text-sm font-semibold">Summe offen</span>
                   <span className="text-sm font-bold text-amber-700">
