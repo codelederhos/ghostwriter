@@ -99,6 +99,74 @@ body {
     @apply w-full h-auto object-cover;
   }
 
+  /* Blog — Inline-Quellenangabe [N] Pill */
+  .blog-prose a.source-pill {
+    @apply inline-flex items-center justify-center text-[10px] font-bold no-underline;
+    @apply w-5 h-5 rounded-full bg-blue-100 text-blue-700 border border-blue-200;
+    @apply hover:bg-blue-200 transition-colors align-super leading-none mx-0.5;
+    vertical-align: super;
+    font-size: 0.65em;
+  }
+
+  /* Blog — Stat-Widget (animierter Zähler) */
+  .stat-widget {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.08), hsl(var(--primary) / 0.04));
+    border: 1px solid hsl(var(--primary) / 0.2);
+    border-radius: 10px;
+    padding: 6px 14px 5px;
+    margin: 0 6px;
+    vertical-align: middle;
+    line-height: 1.1;
+    animation: stat-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .stat-widget__num {
+    @apply text-xl font-black tabular-nums;
+    color: hsl(var(--primary));
+    letter-spacing: -0.02em;
+  }
+  .stat-widget__label {
+    @apply text-[10px] text-muted-foreground;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+  @keyframes stat-pop {
+    from { transform: scale(0.7); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+
+  /* Blog — Quellenliste am Artikelende */
+  .blog-prose .sources-list {
+    @apply mt-10 pt-6 border-t border-border;
+  }
+  .blog-prose .sources-list h2 {
+    @apply text-sm font-semibold uppercase tracking-widest text-muted-foreground mt-0 mb-3;
+    font-size: 0.7rem;
+  }
+  .blog-prose .sources-list ol {
+    @apply space-y-1.5 list-none pl-0 m-0;
+    counter-reset: source-counter;
+  }
+  .blog-prose .sources-list li {
+    @apply flex items-start gap-2 text-xs text-muted-foreground;
+    counter-increment: source-counter;
+  }
+  .blog-prose .sources-list li::before {
+    content: "[" counter(source-counter) "]";
+    @apply flex-shrink-0 font-mono font-bold text-muted-foreground/60 mt-0.5;
+    min-width: 2em;
+  }
+  .blog-prose .sources-list li a {
+    @apply text-muted-foreground hover:text-primary underline-offset-2 break-all;
+    text-decoration: none;
+  }
+  .blog-prose .sources-list li a:hover {
+    text-decoration: underline;
+  }
+
   /* ── Dashboard Widgets ──────────────────────────────── */
 
   .dw-root { position: relative; }

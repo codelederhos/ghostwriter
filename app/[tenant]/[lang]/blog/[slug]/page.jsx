@@ -1,6 +1,7 @@
 import { query } from "@/lib/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import BlogWidgets from "./BlogWidgets";
 
 export async function generateMetadata({ params }) {
   const { tenant, lang, slug } = params;
@@ -137,6 +138,7 @@ export default async function BlogPostPage({ params }) {
             className="blog-prose"
             dangerouslySetInnerHTML={{ __html: post.blog_body }}
           />
+          <BlogWidgets />
 
           {/* Language alternates */}
           {alternates.length > 1 && (
