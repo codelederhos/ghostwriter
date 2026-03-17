@@ -7,6 +7,7 @@ export default function SettingsPage() {
   const [msg, setMsg] = useState(null);
   const [models, setModels] = useState(null);
   const [imageModels, setImageModels] = useState(null);
+  const [features, setFeatures] = useState(null);
   const [pricing, setPricing] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -25,6 +26,7 @@ export default function SettingsPage() {
         openai: { model: "gpt-image-1", label: "GPT-Image 1", size: "1536x1024" },
         flux: { model: "fal-ai/flux/schnell", label: "Flux Schnell" },
       });
+      setFeatures(data.features || { research_enabled: false });
       setPricing(data.pricing || { post_price_cents: 300, backlink_price_cents: 100, membership_monthly_cents: 0 });
     } catch {
       setModels({
@@ -36,6 +38,7 @@ export default function SettingsPage() {
         openai: { model: "gpt-image-1", label: "GPT-Image 1", size: "1536x1024" },
         flux: { model: "fal-ai/flux/schnell", label: "Flux Schnell" },
       });
+      setFeatures({ research_enabled: false });
       setPricing({ post_price_cents: 300, backlink_price_cents: 100, membership_monthly_cents: 0 });
     }
   }
@@ -152,6 +155,48 @@ export default function SettingsPage() {
                 <Save size={14} /> Speichern
               </button>
               {msg === "Bild-Modelle gespeichert" && <p className="text-sm mt-2 text-emerald-600">{msg}</p>}
+            </div>
+          )}
+        </div>
+
+        {/* Features */}
+        <div className="admin-card">
+          <h2 className="text-lg font-semibold mb-2">Features (Global)</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Gilt für alle Tenants. Kunden sehen diese Optionen nicht.
+          </p>
+          {features && (
+            <div className="space-y-3">
+              <div
+                className={`flex items-center justify-between p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                  features.research_enabled ? "border-emerald-400 bg-emerald-50" : "border-border hover:border-muted-foreground/30"
+                }`}
+                onClick={() => setFeatures({ ...features, research_enabled: !features.research_enabled })}
+              >
+                <div>
+                  <p className="font-medium text-sm">Echtzeit-Recherche (Tavily)</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Vor dem Schreiben aktuelle Fakten + Quellen recherchieren. Benötigt TAVILY_API_KEY auf dem Server.</p>
+                </div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ml-4 ${
+                  features.research_enabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
+                }`}>
+                  {features.research_enabled ? "Aktiv" : "Inaktiv"}
+                </span>
+              </div>
+              <button onClick={async () => {
+                setSaving(true);
+                await fetch("/api/admin/config", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ key: "features", value: features }),
+                });
+                setMsg("Features gespeichert");
+                setSaving(false);
+                setTimeout(() => setMsg(null), 3000);
+              }} className="btn-primary" disabled={saving}>
+                <Save size={14} /> Speichern
+              </button>
+              {msg === "Features gespeichert" && <p className="text-sm mt-2 text-emerald-600">{msg}</p>}
             </div>
           )}
         </div>
