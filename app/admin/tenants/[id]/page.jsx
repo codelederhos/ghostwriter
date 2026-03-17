@@ -1247,7 +1247,8 @@ export default function TenantDetailPage() {
           <div className="admin-card">
             <h3 className="font-semibold mb-1">Post-Referenzbilder</h3>
             <p className="text-xs text-muted-foreground mb-4">
-              Bilder die die KI frei wählen kann wenn sie zum Thema passen. Pro Bild: Beschreibung + Kategorie-Zuordnung.
+              Eigene Fotos hochladen — passt das Bild zum Artikel, wird es direkt genutzt (kein KI-Generate). Kein passendes Bild: KI generiert neu.
+              <br />Titelbild wird auch für Posts &amp; Google verwendet.
             </p>
 
             {/* Drag & Drop Upload Zone */}
@@ -1292,6 +1293,20 @@ export default function TenantDetailPage() {
                       </button>
                     </div>
                     <div className="flex-1 space-y-1.5 min-w-0">
+                      {/* Status-Badge: Bereit vs. Beschreibung fehlt */}
+                      {(() => {
+                        const hasDesc = (img.description?.trim()?.length ?? 0) > 5;
+                        const hasCats = (img.categories?.length ?? 0) > 0;
+                        const ready = hasDesc || hasCats;
+                        return (
+                          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            ready ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${ready ? "bg-emerald-500" : "bg-amber-400"}`} />
+                            {ready ? "KI kann dieses Bild wählen" : "Beschreibung oder Kategorie fehlt"}
+                          </div>
+                        );
+                      })()}
                       <input
                         className="form-input text-sm"
                         value={img.description || ""}
@@ -1306,7 +1321,7 @@ export default function TenantDetailPage() {
                             body: JSON.stringify({ action: "update_post_image", imageId: img.id, description: e.target.value, categories: img.categories || [] }),
                           });
                         }}
-                        placeholder="Bildbeschreibung für die KI..."
+                        placeholder="Was zeigt dieses Bild? (z.B. Mehrfamilienhaus in München, Herbst)"
                       />
                       <div className="flex flex-wrap gap-1">
                         {topics.map((t, ti) => {
