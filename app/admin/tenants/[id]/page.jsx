@@ -50,6 +50,7 @@ export default function TenantDetailPage() {
   const [testStartTime, setTestStartTime] = useState(null);
   const [testElapsedMs, setTestElapsedMs] = useState(0);
   const [modelLabels, setModelLabels] = useState({});
+  const pollRef = useRef(null);
 
   function showMsg(text, type = "success") {
     setMsg(text);
@@ -77,6 +78,9 @@ export default function TenantDetailPage() {
     const iv = setInterval(() => setTestElapsedMs(Date.now() - testStartTime), 200);
     return () => clearInterval(iv);
   }, [testRunning, testStartTime]);
+
+  // Poll-Cleanup bei Component-Unmount
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   async function loadModelLabels() {
     try {
@@ -294,6 +298,7 @@ export default function TenantDetailPage() {
 
   async function runTestPost() {
     const start = Date.now();
+    const startISO = new Date(start).toISOString();
     setTestRunning(true);
     setTestStep(0);
     setTestResult(null);
@@ -301,7 +306,7 @@ export default function TenantDetailPage() {
     setTestElapsedMs(0);
 
     // Fortschritts-Steps: Delays proportional zur geschätzten Gesamtdauer
-    const estimated = settings.avg_pipeline_ms ? Math.round(settings.avg_pipeline_ms * 1.1) : 60000;
+    const estimated = settings.avg_pipeline_ms ? Math.round(settings.avg_pipeline_ms * 1.1) : 90000;
     const steps = [
       { frac: 0.00, step: 1 },   // Profil
       { frac: 0.10, step: 2 },   // Thema & Angle
@@ -312,32 +317,60 @@ export default function TenantDetailPage() {
     const timers = steps.map(s => setTimeout(() => setTestStep(s.step), s.frac * estimated));
 
     const override = testMode === "random" ? {} : { categoryIndex: testCatIdx, angleIndex: testAngleIdx };
-    const res = await fetch("/api/autopilot/run", {
+
+    // Pipeline starten — Fire & Forget, Antwort kommt sofort zurück
+    // Pipeline läuft auf Server weiter, auch wenn Browser/Tab geschlossen wird
+    fetch("/api/autopilot/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tenantId: id, preview: true, override, isTest: true }),
-    });
-    const data = await res.json();
+    }).catch(() => {}); // Netzwerkfehler ignorieren — Pipeline läuft unabhängig
 
-    timers.forEach(clearTimeout);
-    setTestElapsedMs(Date.now() - start);
-    setTestRunning(false);
+    let done = false;
 
-    if (data.ok) {
-      const r = data.results?.[0];
-      if (r?.error) {
-        showMsg(`Fehler: ${r.error}`, "error");
-        setTestStep(0);
-      } else {
-        setTestStep(6);
-        setTestResult({ ...r, durationMs: Date.now() - start });
-        // Lokale settings.avg_pipeline_ms aktualisieren für nächsten Run
-        if (r.durationMs) setSettings(s => ({ ...s, avg_pipeline_ms: r.durationMs }));
-      }
-    } else {
-      showMsg(`Fehler: ${data.error}`, "error");
+    // Polling: alle 4s nach neuem Post suchen (created_at > Startzeitpunkt)
+    pollRef.current = setInterval(async () => {
+      if (done) return;
+      try {
+        const res = await fetch(`/api/admin/posts?tenantId=${id}&after=${encodeURIComponent(startISO)}`);
+        const data = await res.json();
+        const post = data.posts?.[0];
+        if (!post) return;
+
+        done = true;
+        clearInterval(pollRef.current);
+        timers.forEach(clearTimeout);
+        const durationMs = Date.now() - start;
+        setTestElapsedMs(durationMs);
+        setTestRunning(false);
+
+        if (post.status === "failed") {
+          showMsg("Pipeline fehlgeschlagen — Details in den Logs", "error");
+          setTestStep(0);
+        } else {
+          setTestStep(6);
+          setTestResult({
+            title: post.blog_title,
+            slug: post.blog_slug,
+            language: post.language,
+            status: post.status,
+            durationMs,
+          });
+          setSettings(s => ({ ...s, avg_pipeline_ms: durationMs }));
+        }
+      } catch { /* Netzwerkfehler — weiter warten */ }
+    }, 4000);
+
+    // Timeout nach 15 Minuten
+    setTimeout(() => {
+      if (done) return;
+      done = true;
+      clearInterval(pollRef.current);
+      timers.forEach(clearTimeout);
+      setTestRunning(false);
       setTestStep(0);
-    }
+      showMsg("Timeout: Post wurde nicht gefunden (15 min). Pipeline läuft evtl. noch auf Server.", "error");
+    }, 900000);
   }
 
   if (!tenant) return (

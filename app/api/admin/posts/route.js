@@ -26,17 +26,31 @@ export async function GET(req) {
     ) as word_count,
     (length(blog_body) - length(replace(blog_body, '<img ', ''))) / 5 as image_count`;
 
+  const after = searchParams.get("after"); // ISO timestamp — nur Posts nach diesem Zeitpunkt
+
   let sql, args;
   if (tenantId) {
-    sql = `
-      SELECT ${baseCols}, ${countCols}
-      FROM ghostwriter_posts gp
-      JOIN tenants t ON t.id = gp.tenant_id
-      WHERE gp.tenant_id = $1
-      ORDER BY gp.created_at DESC
-      LIMIT 200
-    `;
-    args = [tenantId];
+    if (after) {
+      sql = `
+        SELECT ${baseCols}, ${countCols}
+        FROM ghostwriter_posts gp
+        JOIN tenants t ON t.id = gp.tenant_id
+        WHERE gp.tenant_id = $1 AND gp.created_at > $2
+        ORDER BY gp.created_at DESC
+        LIMIT 10
+      `;
+      args = [tenantId, after];
+    } else {
+      sql = `
+        SELECT ${baseCols}, ${countCols}
+        FROM ghostwriter_posts gp
+        JOIN tenants t ON t.id = gp.tenant_id
+        WHERE gp.tenant_id = $1
+        ORDER BY gp.created_at DESC
+        LIMIT 200
+      `;
+      args = [tenantId];
+    }
   } else {
     sql = `
       SELECT ${baseCols}

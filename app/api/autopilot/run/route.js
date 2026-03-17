@@ -11,15 +11,12 @@ export async function POST(req) {
     return NextResponse.json({ error: "tenantId required" }, { status: 400 });
   }
 
-  try {
-    const result = await runPipeline(tenantId, {
-      preview: !!preview,
-      override: override || null,
-      isTest: isTest || false,
-    });
-    return NextResponse.json({ ok: true, ...result });
-  } catch (err) {
-    console.error("[Autopilot/run]", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
+  // Fire & Forget — Pipeline läuft auf Server weiter, auch wenn Browser/Tab geschlossen wird
+  runPipeline(tenantId, {
+    preview: !!preview,
+    override: override || null,
+    isTest: isTest || false,
+  }).catch(err => console.error("[Autopilot/run] Background error:", err.message));
+
+  return NextResponse.json({ ok: true, status: "started" });
 }
