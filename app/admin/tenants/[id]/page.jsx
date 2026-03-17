@@ -762,6 +762,26 @@ export default function TenantDetailPage() {
                 </div>
                 <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">€0</span>
               </label>
+
+              {/* Tavily Recherche */}
+              <div className={`radio-option flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer ${
+                settings.research_enabled ? "radio-option-active border-emerald-400 bg-emerald-50" : "border-border"
+              }`} onClick={() => setSettings({ ...settings, research_enabled: !settings.research_enabled })}>
+                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  settings.research_enabled ? "border-emerald-500" : "border-gray-300"
+                }`}>
+                  <span className={`w-2.5 h-2.5 rounded-full transition-all ${
+                    settings.research_enabled ? "bg-emerald-500 scale-100" : "bg-transparent scale-0"
+                  }`} />
+                </span>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Echtzeit-Recherche (Tavily)</p>
+                  <p className="text-xs text-muted-foreground">Vor dem Schreiben aktuelle Fakten recherchieren. Braucht TAVILY_API_KEY.</p>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${settings.research_enabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                  {settings.research_enabled ? "Aktiv" : "Inaktiv"}
+                </span>
+              </div>
             </div>
           </div>
 
