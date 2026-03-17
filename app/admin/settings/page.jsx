@@ -6,6 +6,7 @@ import { Save } from "lucide-react";
 export default function SettingsPage() {
   const [msg, setMsg] = useState(null);
   const [models, setModels] = useState(null);
+  const [imageModels, setImageModels] = useState(null);
   const [pricing, setPricing] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -20,12 +21,20 @@ export default function SettingsPage() {
         openai: { model: "gpt-4.1-mini", label: "GPT-4.1 Mini", ctx: "1M" },
         mistral: { model: "mistral-large-latest", label: "Mistral Large", ctx: "128k" },
       });
+      setImageModels(data.image_models || {
+        openai: { model: "gpt-image-1", label: "GPT-Image 1", size: "1536x1024" },
+        flux: { model: "fal-ai/flux/schnell", label: "Flux Schnell" },
+      });
       setPricing(data.pricing || { post_price_cents: 300, backlink_price_cents: 100, membership_monthly_cents: 0 });
     } catch {
       setModels({
         anthropic: { model: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", ctx: "200k" },
         openai: { model: "gpt-4.1-mini", label: "GPT-4.1 Mini", ctx: "1M" },
         mistral: { model: "mistral-large-latest", label: "Mistral Large", ctx: "128k" },
+      });
+      setImageModels({
+        openai: { model: "gpt-image-1", label: "GPT-Image 1", size: "1536x1024" },
+        flux: { model: "fal-ai/flux/schnell", label: "Flux Schnell" },
       });
       setPricing({ post_price_cents: 300, backlink_price_cents: 100, membership_monthly_cents: 0 });
     }
@@ -94,6 +103,57 @@ export default function SettingsPage() {
             </div>
           )}
           {msg && <p className="text-sm mt-3 text-emerald-600">{msg}</p>}
+        </div>
+
+        {/* Bild-Modelle */}
+        <div className="admin-card">
+          <h2 className="text-lg font-semibold mb-2">Bild-Modelle</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Welches Modell wird für Bildgenerierung genutzt. Platform-Mode verwendet OpenAI, Own-Key-Mode den Tenant-Provider.
+          </p>
+          {imageModels && (
+            <div className="space-y-3">
+              {[
+                { key: "openai", label: "OpenAI Images", placeholder: "z.B. gpt-image-1 oder dall-e-3" },
+                { key: "flux", label: "Flux (fal.ai)", placeholder: "z.B. fal-ai/flux/schnell" },
+              ].map(({ key, label, placeholder }) => (
+                <div key={key} className="grid grid-cols-[140px_1fr_160px] gap-3 items-center">
+                  <span className="text-sm font-medium">{label}</span>
+                  <input
+                    className="form-input text-sm font-mono"
+                    value={imageModels[key]?.model || ""}
+                    onChange={(e) => setImageModels({ ...imageModels, [key]: { ...imageModels[key], model: e.target.value } })}
+                    placeholder={placeholder}
+                  />
+                  <input
+                    className="form-input text-sm"
+                    value={imageModels[key]?.label || ""}
+                    onChange={(e) => setImageModels({ ...imageModels, [key]: { ...imageModels[key], label: e.target.value } })}
+                    placeholder="Anzeigename"
+                  />
+                </div>
+              ))}
+              <div className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+                <strong>gpt-image-1</strong> = aktuelles OpenAI-Modell (höchste Qualität) &nbsp;·&nbsp;
+                <strong>dall-e-3</strong> = Vorgänger &nbsp;·&nbsp;
+                Flux: eigener fal.ai API-Key im Tenant erforderlich
+              </div>
+              <button onClick={async () => {
+                setSaving(true);
+                await fetch("/api/admin/config", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ key: "image_models", value: imageModels }),
+                });
+                setMsg("Bild-Modelle gespeichert");
+                setSaving(false);
+                setTimeout(() => setMsg(null), 3000);
+              }} className="btn-primary mt-1" disabled={saving}>
+                <Save size={14} /> Speichern
+              </button>
+              {msg === "Bild-Modelle gespeichert" && <p className="text-sm mt-2 text-emerald-600">{msg}</p>}
+            </div>
+          )}
         </div>
 
         {/* Pricing */}
