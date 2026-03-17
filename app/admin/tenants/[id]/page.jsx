@@ -47,6 +47,8 @@ export default function TenantDetailPage() {
   const [testRunning, setTestRunning] = useState(false);
   const [testStep, setTestStep] = useState(0);
   const [testResult, setTestResult] = useState(null);
+  const [testStartTime, setTestStartTime] = useState(null);
+  const [testElapsedMs, setTestElapsedMs] = useState(0);
   const [modelLabels, setModelLabels] = useState({});
 
   function showMsg(text, type = "success") {
@@ -68,6 +70,13 @@ export default function TenantDetailPage() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [postPreview, showTestModal, testRunning, deleteConfirm]);
+
+  // Laufzeit-Timer: tickt alle 200ms während Pipeline läuft
+  useEffect(() => {
+    if (!testRunning || !testStartTime) return;
+    const iv = setInterval(() => setTestElapsedMs(Date.now() - testStartTime), 200);
+    return () => clearInterval(iv);
+  }, [testRunning, testStartTime]);
 
   async function loadModelLabels() {
     try {
@@ -284,19 +293,23 @@ export default function TenantDetailPage() {
   }
 
   async function runTestPost() {
+    const start = Date.now();
     setTestRunning(true);
     setTestStep(0);
     setTestResult(null);
+    setTestStartTime(start);
+    setTestElapsedMs(0);
 
-    // Simulierte Fortschritts-Steps (Pipeline dauert ~15-30s)
+    // Fortschritts-Steps: Delays proportional zur geschätzten Gesamtdauer
+    const estimated = settings.avg_pipeline_ms ? Math.round(settings.avg_pipeline_ms * 1.1) : 60000;
     const steps = [
-      { delay: 0, step: 1 },       // Profil analysieren
-      { delay: 3000, step: 2 },    // Thema & Angle wählen
-      { delay: 6000, step: 3 },    // SEO-Keywords recherchieren
-      { delay: 10000, step: 4 },   // Artikel schreiben
-      { delay: 18000, step: 5 },   // Bilder generieren
+      { frac: 0.00, step: 1 },   // Profil
+      { frac: 0.10, step: 2 },   // Thema & Angle
+      { frac: 0.20, step: 3 },   // SEO
+      { frac: 0.35, step: 4 },   // Schreiben
+      { frac: 0.70, step: 5 },   // Bilder
     ];
-    const timers = steps.map(s => setTimeout(() => setTestStep(s.step), s.delay));
+    const timers = steps.map(s => setTimeout(() => setTestStep(s.step), s.frac * estimated));
 
     const override = testMode === "random" ? {} : { categoryIndex: testCatIdx, angleIndex: testAngleIdx };
     const res = await fetch("/api/autopilot/run", {
@@ -307,6 +320,7 @@ export default function TenantDetailPage() {
     const data = await res.json();
 
     timers.forEach(clearTimeout);
+    setTestElapsedMs(Date.now() - start);
     setTestRunning(false);
 
     if (data.ok) {
@@ -315,8 +329,10 @@ export default function TenantDetailPage() {
         showMsg(`Fehler: ${r.error}`, "error");
         setTestStep(0);
       } else {
-        setTestStep(6); // fertig
-        setTestResult(r);
+        setTestStep(6);
+        setTestResult({ ...r, durationMs: Date.now() - start });
+        // Lokale settings.avg_pipeline_ms aktualisieren für nächsten Run
+        if (r.durationMs) setSettings(s => ({ ...s, avg_pipeline_ms: r.durationMs }));
       }
     } else {
       showMsg(`Fehler: ${data.error}`, "error");
@@ -1498,7 +1514,14 @@ export default function TenantDetailPage() {
               <X size={16} />
             </button>
             <div className="p-5">
-              <h2 className="text-lg font-semibold mb-1">Test-Post erstellen</h2>
+              <div className="flex items-start justify-between mb-1 gap-3">
+                <h2 className="text-lg font-semibold">Test-Post erstellen</h2>
+                {settings.avg_pipeline_ms && (
+                  <span className="text-xs text-muted-foreground bg-muted/60 rounded-full px-2.5 py-1 whitespace-nowrap flex-shrink-0">
+                    ⏱ ca. {Math.round(settings.avg_pipeline_ms * 1.1 / 1000 / 60)}:{String(Math.round((settings.avg_pipeline_ms * 1.1 / 1000) % 60)).padStart(2, "0")} min
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground mb-4">
                 Test-Posts werden als Draft gespeichert und zählen nicht für die Duplikat-Vermeidung.
               </p>
@@ -1550,37 +1573,64 @@ export default function TenantDetailPage() {
                 </div>
               )}
 
-              {/* Pipeline-Fortschritt */}
-              {testRunning && testStep > 0 && (
-                <div className="mb-4 space-y-2">
-                  {[
-                    { s: 1, label: "Profil wird analysiert...", icon: "🔍" },
-                    { s: 2, label: "Thema & Blickwinkel werden gewählt...", icon: "🎯" },
-                    { s: 3, label: "SEO-Keywords werden recherchiert...", icon: "📊" },
-                    { s: 4, label: "Artikel wird geschrieben...", icon: "✍️" },
-                    { s: 5, label: "Bilder werden generiert...", icon: "🎨" },
-                  ].map(({ s, label, icon }) => (
-                    <div key={s} className={`flex items-center gap-2 text-sm transition-all duration-300 ${
-                      testStep === s ? "text-foreground font-medium" : testStep > s ? "text-emerald-600" : "text-muted-foreground/30"
-                    }`}>
-                      <span className="w-5 text-center">
-                        {testStep > s ? "✓" : testStep === s ? (
-                          <span className="inline-block w-3.5 h-3.5 border-2 border-violet-400 border-t-violet-600 rounded-full animate-spin" />
-                        ) : "·"}
-                      </span>
-                      <span>{label}</span>
+              {/* Pipeline-Fortschritt + Timer */}
+              {(testRunning && testStep > 0) && (() => {
+                const estimated = settings.avg_pipeline_ms ? Math.round(settings.avg_pipeline_ms * 1.1) : null;
+                const progress = estimated ? Math.min(testElapsedMs / estimated, 0.97) : null;
+                const remainMs = estimated ? Math.max(estimated - testElapsedMs, 0) : null;
+                const fmtMs = (ms) => { const s = Math.round(ms / 1000); const m = Math.floor(s / 60); return m > 0 ? `${m}:${String(s % 60).padStart(2, "0")} min` : `${s}s`; };
+                return (
+                  <div className="mb-4 space-y-3">
+                    {/* Timer-Zeile */}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="tabular-nums font-mono">{fmtMs(testElapsedMs)} vergangen</span>
+                      {remainMs !== null && (
+                        <span className="tabular-nums font-mono text-primary/80">noch ca. {fmtMs(remainMs)}</span>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
+                    {/* Fortschrittsbalken */}
+                    {progress !== null && (
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-violet-500 to-emerald-500 rounded-full transition-all duration-500"
+                          style={{ width: `${progress * 100}%` }}
+                        />
+                      </div>
+                    )}
+                    {/* Steps */}
+                    <div className="space-y-1.5">
+                      {[
+                        { s: 1, label: "Profil wird analysiert" },
+                        { s: 2, label: "Thema & Blickwinkel werden gewählt" },
+                        { s: 3, label: "SEO-Keywords werden recherchiert" },
+                        { s: 4, label: "Artikel wird geschrieben" },
+                        { s: 5, label: "Bilder werden generiert" },
+                      ].map(({ s, label }) => (
+                        <div key={s} className={`flex items-center gap-2 text-sm transition-all duration-300 ${
+                          testStep === s ? "text-foreground font-medium" : testStep > s ? "text-emerald-600" : "text-muted-foreground/30"
+                        }`}>
+                          <span className="w-4 flex-shrink-0 text-center">
+                            {testStep > s ? "✓" : testStep === s ? (
+                              <span className="inline-block w-3 h-3 border-2 border-violet-400 border-t-violet-600 rounded-full animate-spin" />
+                            ) : "·"}
+                          </span>
+                          <span>{label}{testStep === s ? "..." : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Ergebnis */}
-              {testResult && testStep === 6 && (
+              {testResult && testStep === 6 && (() => {
+                const fmtMs = (ms) => { if (!ms) return ""; const s = Math.round(ms / 1000); const m = Math.floor(s / 60); return m > 0 ? ` · ${m}:${String(s % 60).padStart(2, "0")} min` : ` · ${s}s`; };
+                return (
                 <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
                   <p className="text-sm font-medium text-emerald-800 mb-1">Draft erstellt</p>
                   <p className="text-sm text-emerald-700 font-semibold">{testResult.title}</p>
                   <p className="text-xs text-emerald-600 mt-1">
-                    Status: {testResult.status} · Sprache: {testResult.language}
+                    Status: {testResult.status} · Sprache: {testResult.language}{fmtMs(testResult.durationMs)}
                   </p>
                   <div className="flex gap-2 mt-2">
                     <a
@@ -1593,7 +1643,8 @@ export default function TenantDetailPage() {
                     <button onClick={() => { setShowTestModal(false); setTestStep(0); setTestResult(null); }} className="btn-outline text-xs">Schließen</button>
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* Start Button — nur wenn nicht läuft und kein Ergebnis */}
               {!testRunning && !testResult && (
