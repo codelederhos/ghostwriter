@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
-import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer, Download } from "lucide-react";
+import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer, Download, Copy, Check } from "lucide-react";
 import Link from "next/link";
 import { fmtMs } from "@/lib/utils/format";
 
@@ -1781,14 +1781,7 @@ export default function TenantDetailPage() {
                       placeholder="Automatisch generiert oder manuell"
                     />
                     {settings.client_api_key && (
-                      <button
-                        type="button"
-                        className="btn-outline text-xs flex-shrink-0"
-                        onClick={() => { navigator.clipboard.writeText(settings.client_api_key); showMsg("API Key kopiert"); }}
-                        title="Kopieren"
-                      >
-                        Kopieren
-                      </button>
+                      <CopyButton text={settings.client_api_key} className="flex-shrink-0 h-9 w-9 border border-border rounded-lg" />
                     )}
                     <button
                       type="button"
@@ -1799,9 +1792,11 @@ export default function TenantDetailPage() {
                     </button>
                   </div>
                 </div>
-                <div className="p-3 rounded-lg bg-muted/40 border border-border/50 text-xs">
+                <div className="text-xs">
                   <p className="font-medium mb-1.5">Payload (POST an Webhook):</p>
-                  <pre className="text-muted-foreground font-mono text-[11px] leading-relaxed overflow-x-auto">{`{ "event": "post_published", "post": { "id": "...", "title": "...", "slug": "...", "body_html": "...", "language": "de", "url": "https://..." } }`}</pre>
+                  <CodeBlock text={`{ "event": "post_published", "post": { "id": "...", "title": "...", "slug": "...", "body_html": "...", "language": "de", "url": "https://..." } }`}>
+                    {`{ "event": "post_published", "post": { "id": "...", "title": "...", "slug": "...", "body_html": "...", "language": "de", "url": "https://..." } }`}
+                  </CodeBlock>
                 </div>
               </div>
             </div>
@@ -1818,17 +1813,7 @@ export default function TenantDetailPage() {
             {(() => {
               const base = typeof window !== "undefined" ? window.location.origin : "";
               const embedCode = `<div id="gw-blog"></div>\n<script src="${base}/api/public/${tenant?.slug}/embed.js?lang=de&limit=5&style=cards"></script>`;
-              return (
-                <div className="relative">
-                  <pre className="text-[11px] font-mono bg-muted/40 border border-border rounded-lg px-4 py-3 overflow-x-auto text-muted-foreground leading-relaxed">{embedCode}</pre>
-                  <button
-                    className="absolute top-2 right-2 btn-outline text-[10px]"
-                    onClick={() => { navigator.clipboard.writeText(embedCode); showMsg("Snippet kopiert"); }}
-                  >
-                    Kopieren
-                  </button>
-                </div>
-              );
+              return <CodeBlock text={embedCode}>{embedCode}</CodeBlock>;
             })()}
             <p className="text-xs text-muted-foreground">
               Parameter: <code className="bg-muted px-1 rounded">lang</code> = Sprache &nbsp;·&nbsp; <code className="bg-muted px-1 rounded">limit</code> = Anzahl &nbsp;·&nbsp; <code className="bg-muted px-1 rounded">style</code> = cards | list | minimal
@@ -1841,9 +1826,19 @@ export default function TenantDetailPage() {
               <h3 className="font-semibold">Public API</h3>
               <p className="text-xs text-muted-foreground mt-0.5">Posts als JSON — öffentlich, kein API-Key nötig.</p>
             </div>
-            <div className="space-y-1.5 font-mono text-xs bg-muted/40 border border-border rounded-lg px-4 py-3">
-              <p><span className="text-emerald-600 font-bold">GET</span> <span className="text-muted-foreground">/api/public/{tenant?.slug}/de/posts</span></p>
-              <p><span className="text-emerald-600 font-bold">GET</span> <span className="text-muted-foreground">/api/public/{tenant?.slug}/de/posts/[slug]</span></p>
+            <div className="space-y-2">
+              {[
+                `/api/public/${tenant?.slug}/de/posts`,
+                `/api/public/${tenant?.slug}/de/posts/[slug]`,
+              ].map((endpoint) => (
+                <div key={endpoint} className="relative group flex items-center gap-3 font-mono text-xs bg-muted/40 border border-border rounded-lg px-4 py-2.5 pr-10">
+                  <span className="text-emerald-600 font-bold flex-shrink-0">GET</span>
+                  <span className="text-muted-foreground">{endpoint}</span>
+                  <div className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <CopyButton text={typeof window !== "undefined" ? `${window.location.origin}${endpoint}` : endpoint} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -2369,6 +2364,35 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
             Im Blog öffnen
           </a>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CopyButton({ text, className = "" }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className={`dw-icon-btn transition-colors ${copied ? "text-emerald-500" : ""} ${className}`}
+      title={copied ? "Kopiert!" : "Kopieren"}
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+    >
+      {copied ? <Check size={13} /> : <Copy size={13} />}
+    </button>
+  );
+}
+
+function CodeBlock({ children, text, className = "" }) {
+  return (
+    <div className={`relative group ${className}`}>
+      <pre className="text-[11px] font-mono bg-muted/40 border border-border rounded-lg px-4 py-3 overflow-x-auto text-muted-foreground leading-relaxed pr-10">{children}</pre>
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <CopyButton text={text || (typeof children === "string" ? children : "")} />
       </div>
     </div>
   );
