@@ -3,15 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Timer, CheckCircle, XCircle, X } from "lucide-react";
+import { fmtMs } from "@/lib/utils/format";
 
 const LS_KEY = "gw_pipeline";
-
-function fmtMs(ms) {
-  if (ms < 60000) return `${Math.floor(ms / 1000)}s`;
-  const m = Math.floor(ms / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  return `${m}:${s.toString().padStart(2, "0")} min`;
-}
 
 export default function PipelinePill() {
   const router = useRouter();
@@ -114,16 +108,11 @@ export default function PipelinePill() {
       }}
     >
       {/* Progress bar */}
-      {isRunning && (
-        <div className="h-[3px] bg-white/10 w-full">
-          <div
-            className="h-full bg-violet-400 transition-all duration-1000"
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
-      )}
-      {isDone && <div className="h-[3px] bg-emerald-400 w-full" />}
-      {isError && <div className="h-[3px] bg-red-400 w-full" />}
+      <div className={`h-[3px] w-full ${isDone ? "bg-emerald-400" : isError ? "bg-red-400" : "bg-white/10"}`}>
+        {isRunning && (
+          <div className="h-full bg-violet-400 transition-all duration-1000" style={{ width: `${progress * 100}%` }} />
+        )}
+      </div>
 
       <div className="px-4 py-3 flex items-start gap-3">
         <div className="mt-0.5 flex-shrink-0">

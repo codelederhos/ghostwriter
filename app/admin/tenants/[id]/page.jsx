@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer } from "lucide-react";
 import Link from "next/link";
+import { fmtMs } from "@/lib/utils/format";
 
 const DEFAULT_ANGLES = [
   { key: 1, label: "Zahlenfakt / Rechenbeispiel", active: true },
@@ -1727,7 +1728,6 @@ export default function TenantDetailPage() {
                 const estimated = settings.avg_pipeline_ms ? Math.round(settings.avg_pipeline_ms * 1.1) : null;
                 const progress = estimated ? Math.min(testElapsedMs / estimated, 0.97) : null;
                 const remainMs = estimated ? Math.max(estimated - testElapsedMs, 0) : null;
-                const fmtMs = (ms) => { const s = Math.round(ms / 1000); const m = Math.floor(s / 60); return m > 0 ? `${m}:${String(s % 60).padStart(2, "0")} min` : `${s}s`; };
                 const dots = [".","..","...","..","." ][dotPhase];
                 return (
                   <div className="mb-4 space-y-3">
@@ -1783,13 +1783,13 @@ export default function TenantDetailPage() {
 
               {/* Ergebnis */}
               {testResult && testStep === 6 && (() => {
-                const fmtMs = (ms) => { if (!ms) return ""; const s = Math.round(ms / 1000); const m = Math.floor(s / 60); return m > 0 ? ` · ${m}:${String(s % 60).padStart(2, "0")} min` : ` · ${s}s`; };
+                const fmtDuration = (ms) => ms ? ` · ${fmtMs(ms)}` : "";
                 return (
                 <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
                   <p className="text-sm font-medium text-emerald-800 mb-1">Draft erstellt</p>
                   <p className="text-sm text-emerald-700 font-semibold">{testResult.title}</p>
                   <p className="text-xs text-emerald-600 mt-1">
-                    Status: {testResult.status} · Sprache: {testResult.language}{fmtMs(testResult.durationMs)}
+                    Status: {testResult.status} · Sprache: {testResult.language}{fmtDuration(testResult.durationMs)}
                   </p>
                   <div className="flex gap-2 mt-2">
                     <a
