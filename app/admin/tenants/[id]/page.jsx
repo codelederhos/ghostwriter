@@ -51,6 +51,7 @@ export default function TenantDetailPage() {
   const [testStartTime, setTestStartTime] = useState(null);
   const [testElapsedMs, setTestElapsedMs] = useState(0);
   const [modelLabels, setModelLabels] = useState({});
+  const [sysPricing, setSysPricing] = useState({ post_price_cents: 300, refresh_discount_percent: 40 });
   const [dotPhase, setDotPhase] = useState(0);
   const [displayTotal, setDisplayTotal] = useState(0);
   const [regenModal, setRegenModal] = useState(null); // { postId, postTitle, imageUrl, regenPrice }
@@ -125,6 +126,7 @@ export default function TenantDetailPage() {
         labels[k] = `${v.label} (${v.ctx})`;
       }
       setModelLabels(labels);
+      if (data.pricing) setSysPricing(p => ({ ...p, ...data.pricing }));
     } catch { /* fallback below */ }
   }
 
@@ -955,24 +957,38 @@ export default function TenantDetailPage() {
               </label>
 
               {/* Content Refresh — unabhängiger Toggle */}
-              <div
-                className={`flex items-center justify-between p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                  settings.refresh_enabled ? "border-emerald-400 bg-emerald-50" : "border-border hover:border-muted-foreground/30"
-                }`}
-                onClick={() => setSettings({ ...settings, refresh_enabled: !settings.refresh_enabled })}
-              >
-                <div>
-                  <p className="font-medium text-sm">Content Refresh</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Posts älter als 180 Tage werden automatisch mit neuen Fakten aktualisiert. Kosten: Rabattiert (in Settings konfigurierbar).
-                  </p>
-                </div>
-                <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ml-4 ${
-                  settings.refresh_enabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
-                }`}>
-                  {settings.refresh_enabled ? "Aktiv" : "Inaktiv"}
-                </span>
-              </div>
+              {(() => {
+                const refreshCents = Math.round(sysPricing.post_price_cents * (1 - (sysPricing.refresh_discount_percent ?? 40) / 100));
+                const discount = sysPricing.refresh_discount_percent ?? 40;
+                return (
+                  <div
+                    className={`flex items-start justify-between p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                      settings.refresh_enabled ? "border-emerald-400 bg-emerald-50" : "border-border hover:border-muted-foreground/30"
+                    }`}
+                    onClick={() => setSettings({ ...settings, refresh_enabled: !settings.refresh_enabled })}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">Content Refresh</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Ältere Artikel verlieren Rankings durch veraltete Zahlen. Ghostwriter aktualisiert automatisch Fakten + Jahreszahlen — mehr Traffic ohne neuen Post.
+                      </p>
+                      <p className="text-xs text-muted-foreground/70 mt-1">
+                        Posts &gt; 180 Tage · max. 1 Post/Tenant/Tag · {discount}% Rabatt auf Normalpreis
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 ml-4 flex-shrink-0">
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                        settings.refresh_enabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
+                      }`}>
+                        {settings.refresh_enabled ? "Aktiv" : "Inaktiv"}
+                      </span>
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        {(refreshCents / 100).toFixed(2)} €/Post
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
             </div>
           </div>
