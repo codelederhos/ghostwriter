@@ -68,6 +68,47 @@ export default function TenantDetailPage() {
 
   useEffect(() => { loadTenant(); loadModelLabels(); loadBilling(); loadTenantPosts(); }, [id]);
 
+  // Pipeline-State aus localStorage wiederherstellen (z.B. nach Seiten-Reload während laufender Pipeline)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("gw_pipeline");
+      if (!raw) return;
+      const state = JSON.parse(raw);
+      if (state.tenantId !== id || state.status !== "running") return;
+      // Modal + Polling wiederherstellen
+      const start = state.startedAt;
+      const startISO = state.startISO;
+      setShowTestModal(true);
+      setTestRunning(true);
+      setTestStartTime(start);
+      setTestElapsedMs(Date.now() - start);
+      setTestStep(3); // Mitten drin
+      // Polling starten
+      const poll = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/admin/posts?tenantId=${id}&after=${encodeURIComponent(startISO)}`);
+          const data = await res.json();
+          const post = data.posts?.[0];
+          if (!post) return;
+          clearInterval(poll);
+          const durationMs = Date.now() - start;
+          setTestElapsedMs(durationMs);
+          setTestRunning(false);
+          if (post.status === "failed") {
+            showMsg("Pipeline fehlgeschlagen — Details in den Logs", "error");
+            setTestStep(0);
+          } else {
+            setTestStep(6);
+            setTestResult({ title: post.blog_title, slug: post.blog_slug, language: post.language, status: post.status, durationMs });
+            loadBilling();
+            loadTenantPosts(true);
+          }
+        } catch { /* weiter */ }
+      }, 4000);
+      pollRef.current = poll;
+    } catch { /* ignorieren */ }
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ESC schliesst alle offenen Modals
   useEffect(() => {
     function onKey(e) {
