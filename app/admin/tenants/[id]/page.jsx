@@ -2386,11 +2386,8 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
         {/* Tab: Post / GBP */}
         {tab === "post" && (
           <div className="p-6 space-y-4">
-            {post.image_url_2 && (
-              <img src={post.image_url_2} alt="" className="w-full max-w-xs mx-auto rounded-xl object-cover aspect-square block" />
-            )}
-            {!post.image_url_2 && post.image_url && (
-              <img src={post.image_url} alt="" className="w-full max-w-xs mx-auto rounded-xl object-cover aspect-square block" />
+            {post.image_url && (
+              <img src={post.image_url} alt="" className="w-full rounded-xl object-cover" style={{maxHeight: "280px"}} />
             )}
             <div className="bg-muted/40 rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap">
               {post.gbp_text || post.blog_title}
