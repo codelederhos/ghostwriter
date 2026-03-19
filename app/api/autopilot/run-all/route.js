@@ -3,6 +3,7 @@ import { query } from "@/lib/db";
 import { runPipeline } from "@/lib/pipeline/index.js";
 import { sendTelegramAlert } from "@/lib/reporters/telegram.js";
 import { decrypt } from "@/lib/crypto.js";
+import { createDueMembershipCycles } from "@/lib/membership.js";
 
 /**
  * Scheduler endpoint: runs all tenants that are due
@@ -44,6 +45,28 @@ export async function POST(req) {
         } catch { /* ignore alert failure */ }
       }
     }
+  }
+
+  // Membership-Zyklen für alle aktiven Platform-Tenants erzeugen
+  // (unabhängig davon ob heute ein Post-Run fällig ist)
+  try {
+    const { rows: platformTenants } = await query(
+      `SELECT ts.tenant_id, sc.value->>'membership_monthly_cents' as membership_cents
+       FROM tenant_settings ts
+       JOIN tenants t ON t.id = ts.tenant_id
+       JOIN system_config sc ON sc.key = 'pricing'
+       WHERE t.status = 'active' AND ts.billing_mode = 'platform'`
+    );
+    for (const pt of platformTenants) {
+      const cents = parseInt(pt.membership_cents) || 0;
+      if (cents > 0) {
+        await createDueMembershipCycles(pt.tenant_id, cents).catch(e =>
+          console.error("[Membership Cycles]", e.message)
+        );
+      }
+    }
+  } catch (e) {
+    console.error("[Membership Cycles Scheduler]", e.message);
   }
 
   return NextResponse.json({ ok: true, processed: results.length, results });

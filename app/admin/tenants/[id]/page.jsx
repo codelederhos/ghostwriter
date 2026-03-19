@@ -626,14 +626,19 @@ export default function TenantDetailPage() {
                     </div>
                   ))}
                 </div>
-                {billingData.membershipCents > 0 && (
-                  <div className="flex items-center justify-between py-2 px-2 text-muted-foreground">
-                    <span className="text-sm">Mitgliedsbeitrag (Monat)</span>
+                {billingData.openCycles?.length > 0 && billingData.openCycles.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between py-2 px-2 text-muted-foreground">
+                    <div>
+                      <p className="text-sm">Mitgliedsbeitrag</p>
+                      <p className="text-xs text-muted-foreground/70">
+                        {new Date(c.cycle_start).toLocaleDateString("de")} – {new Date(c.cycle_end).toLocaleDateString("de")}
+                      </p>
+                    </div>
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                      {(billingData.membershipCents / 100).toFixed(2)} €
+                      {(c.amount_cents / 100).toFixed(2)} €
                     </span>
                   </div>
-                )}
+                ))}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
                   <span className="text-sm font-semibold">Summe offen</span>
                   <span className="text-sm font-bold text-amber-700">
