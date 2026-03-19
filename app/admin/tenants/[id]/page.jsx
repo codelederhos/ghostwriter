@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
-import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X } from "lucide-react";
+import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer } from "lucide-react";
 import Link from "next/link";
 
 const DEFAULT_ANGLES = [
@@ -50,6 +50,7 @@ export default function TenantDetailPage() {
   const [testStartTime, setTestStartTime] = useState(null);
   const [testElapsedMs, setTestElapsedMs] = useState(0);
   const [modelLabels, setModelLabels] = useState({});
+  const [dotPhase, setDotPhase] = useState(0);
   const pollRef = useRef(null);
 
   function showMsg(text, type = "success") {
@@ -78,6 +79,13 @@ export default function TenantDetailPage() {
     const iv = setInterval(() => setTestElapsedMs(Date.now() - testStartTime), 200);
     return () => clearInterval(iv);
   }, [testRunning, testStartTime]);
+
+  // Dot-Animation: . → .. → ... → .. → . alle 400ms
+  useEffect(() => {
+    if (!testRunning) return;
+    const iv = setInterval(() => setDotPhase(p => (p + 1) % 5), 400);
+    return () => clearInterval(iv);
+  }, [testRunning]);
 
   // Poll-Cleanup bei Component-Unmount
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
@@ -1625,14 +1633,16 @@ export default function TenantDetailPage() {
                 const progress = estimated ? Math.min(testElapsedMs / estimated, 0.97) : null;
                 const remainMs = estimated ? Math.max(estimated - testElapsedMs, 0) : null;
                 const fmtMs = (ms) => { const s = Math.round(ms / 1000); const m = Math.floor(s / 60); return m > 0 ? `${m}:${String(s % 60).padStart(2, "0")} min` : `${s}s`; };
+                const dots = [".","..","...","..","." ][dotPhase];
                 return (
                   <div className="mb-4 space-y-3">
                     {/* Timer-Zeile */}
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="tabular-nums font-mono">{fmtMs(testElapsedMs)} vergangen</span>
-                      {remainMs !== null && (
-                        <span className="tabular-nums font-mono text-primary/80">noch ca. {fmtMs(remainMs)}</span>
-                      )}
+                      <span className="flex items-center gap-1.5 tabular-nums font-mono">
+                        <Timer size={12} className="flex-shrink-0" />
+                        {fmtMs(testElapsedMs)} vergangen
+                      </span>
+                      <span className="tabular-nums font-mono tracking-widest text-primary/60 w-6 text-right">{dots}</span>
                     </div>
                     {/* Fortschrittsbalken */}
                     {progress !== null && (
@@ -1660,7 +1670,12 @@ export default function TenantDetailPage() {
                               <span className="inline-block w-3 h-3 border-2 border-violet-400 border-t-violet-600 rounded-full animate-spin" />
                             ) : "·"}
                           </span>
-                          <span>{label}{testStep === s ? "..." : ""}</span>
+                          <span className="tabular-nums">
+                            {label}
+                            {testStep === s && (
+                              <span className="inline-block w-6 text-left font-mono tracking-widest">{dots}</span>
+                            )}
+                          </span>
                         </div>
                       ))}
                     </div>
