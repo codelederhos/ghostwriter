@@ -907,7 +907,7 @@ export default function TenantDetailPage() {
                   <p className="font-medium text-sm">Platform (All-Inclusive)</p>
                   <p className="text-xs text-muted-foreground">Text + 2 Bilder + SEO inklusive</p>
                 </div>
-                <span className="text-sm font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">~€3/Post</span>
+                <span className="text-sm font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">~{(sysPricing.post_price_cents / 100).toFixed(2).replace(".", ",")} €/Post</span>
               </label>
               <label
                 className={`radio-option flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer ${
@@ -1078,7 +1078,7 @@ export default function TenantDetailPage() {
             <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200">
               <p className="text-sm font-medium text-emerald-800">Platform-Modus aktiv</p>
               <p className="text-xs text-emerald-700 mt-1">
-                API Keys werden von Code-Lederhos bereitgestellt. Abrechnung: ~€3 pro Post (Text + 2 Bilder + SEO).
+                API Keys werden von Code-Lederhos bereitgestellt. Abrechnung: ~{(sysPricing.post_price_cents / 100).toFixed(2).replace(".", ",")} € pro Post (Text + 2 Bilder + SEO).
                 Keine eigenen Keys nötig.
               </p>
             </div>
