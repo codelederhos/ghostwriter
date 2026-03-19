@@ -1774,12 +1774,22 @@ export default function TenantDetailPage() {
                   <label className="form-label">API Key (Bearer Token)</label>
                   <div className="flex gap-2">
                     <input
-                      type="password"
-                      className="form-input flex-1 text-sm"
+                      type="text"
+                      className="form-input flex-1 text-sm font-mono"
                       value={settings.client_api_key || ""}
                       onChange={(e) => setSettings({ ...settings, client_api_key: e.target.value })}
                       placeholder="Automatisch generiert oder manuell"
                     />
+                    {settings.client_api_key && (
+                      <button
+                        type="button"
+                        className="btn-outline text-xs flex-shrink-0"
+                        onClick={() => { navigator.clipboard.writeText(settings.client_api_key); showMsg("API Key kopiert"); }}
+                        title="Kopieren"
+                      >
+                        Kopieren
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn-outline text-xs flex-shrink-0"
