@@ -377,6 +377,8 @@ export default function TenantDetailPage() {
       { frac: 0.20, step: 3 },   // SEO
       { frac: 0.35, step: 4 },   // Schreiben
       { frac: 0.70, step: 5 },   // Bilder
+      { frac: 0.88, step: 6 },   // QA
+      { frac: 0.94, step: 7 },   // Korrektur (optional)
     ];
     const timers = steps.map(s => setTimeout(() => setTestStep(s.step), s.frac * estimated));
 
@@ -1763,6 +1765,8 @@ export default function TenantDetailPage() {
                         { s: 3, label: "SEO-Keywords werden recherchiert" },
                         { s: 4, label: "Artikel wird geschrieben" },
                         { s: 5, label: "Bilder werden generiert" },
+                        { s: 6, label: "Qualitätsprüfung läuft" },
+                        { s: 7, label: "Artikel wird optimiert" },
                       ].map(({ s, label }) => (
                         <div key={s} className={`flex items-center gap-2 text-sm transition-all duration-300 ${
                           testStep === s ? "text-foreground font-medium" : testStep > s ? "text-emerald-600" : "text-muted-foreground/30"
