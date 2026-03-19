@@ -167,6 +167,116 @@ body {
     text-decoration: underline;
   }
 
+  /* ── Blog Content-Bausteine (Rich Components) ────────── */
+
+  /* Callout-Box: Tipp / Info / Warnung */
+  .blog-prose .callout {
+    @apply flex gap-3 rounded-xl border px-4 py-3.5 my-5 text-sm leading-relaxed;
+  }
+  .blog-prose .callout::before {
+    @apply flex-shrink-0 text-lg leading-snug;
+  }
+  .blog-prose .callout--tip {
+    @apply bg-emerald-50 border-emerald-200 text-emerald-900;
+  }
+  .blog-prose .callout--tip::before { content: "💡"; }
+  .blog-prose .callout--info {
+    @apply bg-blue-50 border-blue-200 text-blue-900;
+  }
+  .blog-prose .callout--info::before { content: "ℹ️"; }
+  .blog-prose .callout--warning {
+    @apply bg-amber-50 border-amber-200 text-amber-900;
+  }
+  .blog-prose .callout--warning::before { content: "⚠️"; }
+
+  /* Stat-Grid: mehrere Kennzahlen nebeneinander */
+  .blog-prose .stat-grid {
+    @apply grid gap-3 my-6;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  }
+  .blog-prose .stat-grid__item {
+    @apply flex flex-col items-center text-center rounded-xl border border-border p-4;
+    background: linear-gradient(135deg, hsl(var(--primary)/0.06), hsl(var(--primary)/0.02));
+  }
+  .blog-prose .stat-grid__num {
+    @apply text-2xl font-black tabular-nums;
+    color: hsl(var(--primary));
+    letter-spacing: -0.03em;
+  }
+  .blog-prose .stat-grid__label {
+    @apply text-[11px] text-muted-foreground mt-1 leading-tight;
+  }
+
+  /* Process Steps: Nummerierte Schritte */
+  .blog-prose .process-steps {
+    @apply list-none pl-0 space-y-3 my-5;
+    counter-reset: step;
+  }
+  .blog-prose .process-steps li {
+    @apply flex gap-3 items-start;
+    counter-increment: step;
+  }
+  .blog-prose .process-steps li::before {
+    content: counter(step);
+    @apply flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white mt-0.5;
+    background: hsl(var(--primary));
+    min-width: 1.75rem;
+  }
+
+  /* Check/Cross-Liste */
+  .blog-prose .check-list,
+  .blog-prose .cross-list {
+    @apply list-none pl-0 space-y-1.5 my-4;
+  }
+  .blog-prose .check-list li::before {
+    content: "✓";
+    @apply inline-block w-6 font-bold text-emerald-600;
+  }
+  .blog-prose .cross-list li::before {
+    content: "✗";
+    @apply inline-block w-6 font-bold text-red-500;
+  }
+
+  /* Highlight-Quote: Hervorgehobene Aussage */
+  .blog-prose .highlight-quote {
+    @apply relative border-l-4 pl-5 py-2 my-6 italic text-lg leading-relaxed;
+    border-color: hsl(var(--primary));
+    color: hsl(var(--foreground));
+  }
+  .blog-prose .highlight-quote::before {
+    content: "\201C";
+    @apply absolute -left-1 -top-2 text-4xl font-black opacity-20;
+    color: hsl(var(--primary));
+    line-height: 1;
+  }
+
+  /* Compare-Block: Vergleich Andere vs. Wir */
+  .blog-prose .compare-block {
+    @apply rounded-xl border border-border overflow-hidden my-6;
+  }
+  .blog-prose .compare-block__row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    @apply border-b border-border/50 last:border-b-0;
+  }
+  .blog-prose .compare-block__row > div {
+    @apply px-4 py-3 text-sm;
+  }
+  .blog-prose .compare-block__header {
+    @apply bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground;
+  }
+  .blog-prose .compare-block__crit {
+    @apply font-medium text-foreground;
+  }
+  .blog-prose .compare-block__neg {
+    @apply text-red-700 bg-red-50/50;
+  }
+  .blog-prose .compare-block__neg::before { content: "✗ "; @apply font-bold; }
+  .blog-prose .compare-block__pos {
+    @apply text-emerald-700 bg-emerald-50/50 font-medium;
+  }
+  .blog-prose .compare-block__pos::before { content: "✓ "; @apply font-bold; }
+
   /* ── Dashboard Widgets ──────────────────────────────── */
 
   .dw-root { position: relative; }

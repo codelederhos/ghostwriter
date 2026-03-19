@@ -129,13 +129,13 @@ export default async function BlogPostPage({ params }) {
 
           {/* Image */}
           {post.image_url && (
-            <div className="rounded-xl overflow-hidden mb-8 aspect-[4/3]">
+            <div className="rounded-xl overflow-hidden mb-8 aspect-[16/9]">
               <img
                 src={post.image_url}
                 alt={post.image_alt_text || post.blog_title}
                 className="w-full h-full object-cover"
-                width={1200}
-                height={900}
+                width={1536}
+                height={864}
               />
             </div>
           )}
