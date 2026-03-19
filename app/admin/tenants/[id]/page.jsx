@@ -1661,11 +1661,15 @@ export default function TenantDetailPage() {
             <div className="p-5">
               <div className="flex items-start justify-between mb-1 gap-3">
                 <h2 className="text-lg font-semibold">Test-Post erstellen</h2>
-                {settings.avg_pipeline_ms && (
-                  <span className="text-xs text-muted-foreground bg-muted/60 rounded-full px-2.5 py-1 whitespace-nowrap flex-shrink-0">
-                    ⏱ ca. {Math.round(settings.avg_pipeline_ms * 1.1 / 1000 / 60)}:{String(Math.round((settings.avg_pipeline_ms * 1.1 / 1000) % 60)).padStart(2, "0")} min
-                  </span>
-                )}
+                {settings.avg_pipeline_ms && (() => {
+                  const s = Math.round(settings.avg_pipeline_ms * 1.1 / 1000);
+                  const m = Math.floor(s / 60);
+                  return (
+                    <span className="text-xs text-muted-foreground bg-muted/60 rounded-full px-2.5 py-1 whitespace-nowrap flex-shrink-0">
+                      ⏱ ca. {m}:{String(s % 60).padStart(2, "0")} min
+                    </span>
+                  );
+                })()}
               </div>
               <p className="text-sm text-muted-foreground mb-4">
                 Test-Posts werden als Draft gespeichert und zählen nicht für die Duplikat-Vermeidung.
