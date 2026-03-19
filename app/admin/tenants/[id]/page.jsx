@@ -649,11 +649,18 @@ export default function TenantDetailPage() {
                         </p>
                         <p className="text-xs text-muted-foreground">{p.category} · {p.angle} · {new Date(p.created_at).toLocaleDateString("de")}</p>
                       </div>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        p.is_test ? "bg-violet-100 text-violet-700" : "bg-amber-100 text-amber-700"
-                      }`}>
-                        {((p.calculated_price != null ? p.calculated_price : (billingData.pricing?.post_price_cents ?? 300)) / 100).toFixed(2)} €
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {p.is_test && billingData.pricing?.post_price_cents && p.calculated_price < billingData.pricing.post_price_cents && (
+                          <span className="text-[10px] text-muted-foreground/50 line-through tabular-nums">
+                            {(billingData.pricing.post_price_cents / 100).toFixed(2)} €
+                          </span>
+                        )}
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full tabular-nums ${
+                          p.is_test ? "bg-violet-100 text-violet-700" : "bg-amber-100 text-amber-700"
+                        }`}>
+                          {((p.calculated_price != null ? p.calculated_price : (billingData.pricing?.post_price_cents ?? 300)) / 100).toFixed(2)} €
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
