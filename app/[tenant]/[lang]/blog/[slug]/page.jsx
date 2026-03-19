@@ -119,7 +119,7 @@ export default async function BlogPostPage({ params }) {
           {/* Meta */}
           <div className="mb-6">
             <p className="text-sm text-muted-foreground mb-2">
-              {post.category} &middot; {new Date(post.published_at).toLocaleDateString(lang)}
+              {post.category} &middot; {new Date(post.published_at || post.created_at).toLocaleDateString(lang, { year: "numeric", month: "long", day: "numeric" })}
             </p>
             <h1 className="text-3xl font-bold leading-tight mb-3">{post.blog_title}</h1>
             {post.blog_meta_description && (
