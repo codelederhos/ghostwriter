@@ -58,7 +58,9 @@ export async function POST(req, { params }) {
   }
 
   const style = decrypted.image_style_prefix || "Shot on Canon 5D Mark IV 35mm f/2.8, golden hour natural light, Kodak Portra 400 film grain, authentic atmosphere, no faces, no text, no logos, no CGI";
-  const rawPrompt = post.image_prompt_1 || post.blog_title;
+  // Fallback: Kein Blog-Titel als Prompt (würde Text ins Bild rendern) — stattdessen thematische Szene
+  const rawPrompt = post.image_prompt_1
+    || `Real estate scene, ${post.category || "Immobilien"} context, professional atmosphere, people interacting naturally with property documents or a building, warm light`;
   const prompt = `${style}. ${rawPrompt}`;
 
   try {
