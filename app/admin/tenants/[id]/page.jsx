@@ -789,7 +789,7 @@ export default function TenantDetailPage() {
                   <div key={r.id} className="flex items-center justify-between py-2 px-2 text-muted-foreground">
                     <div>
                       <p className="text-sm">Bild neu generiert</p>
-                      <p className="text-xs text-muted-foreground/70 line-clamp-1">{r.post_title}</p>
+                      <p className="text-xs text-muted-foreground/70 line-clamp-1">{r.post_title} · {new Date(r.created_at).toLocaleDateString("de")}</p>
                     </div>
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 tabular-nums">
                       {(r.cost_cents / 100).toFixed(2)} €
