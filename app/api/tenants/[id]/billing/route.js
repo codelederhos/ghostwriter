@@ -22,10 +22,10 @@ export async function GET(req, { params }) {
   // Membership-Zyklen erzeugen die seit letztem Scheduler-Lauf fällig geworden sind
   await createDueMembershipCycles(id, pricing.membership_monthly_cents || 0).catch(() => {});
 
-  const [{ rows: periods }, { rows: rawPosts }, { rows: openCycles }] = await Promise.all([
+  const [{ rows: periods }, { rows: rawPosts }, { rows: openCycles }, { rows: openRegens }] = await Promise.all([
     query("SELECT * FROM billing_periods WHERE tenant_id = $1 ORDER BY period_start DESC", [id]),
     query(
-      `SELECT id, blog_title, category, angle, billing_mode, is_test, cost_cents, created_at
+      `SELECT id, blog_title, category, angle, billing_mode, is_test, cost_cents, full_cost_cents, created_at
        FROM ghostwriter_posts
        WHERE tenant_id = $1 AND status != 'failed' AND billing_mode = 'platform'
          AND created_at > COALESCE(
@@ -39,12 +39,23 @@ export async function GET(req, { params }) {
       "SELECT * FROM membership_billing_cycles WHERE tenant_id = $1 AND status = 'open' ORDER BY cycle_start",
       [id]
     ),
+    query(
+      `SELECT pir.*, gp.blog_title as post_title FROM post_image_regenerations pir
+       JOIN ghostwriter_posts gp ON gp.id = pir.post_id
+       WHERE pir.tenant_id = $1
+         AND pir.created_at > COALESCE(
+           (SELECT period_end FROM billing_periods WHERE tenant_id = $1 AND status != 'open' ORDER BY period_end DESC LIMIT 1),
+           '2020-01-01'::date
+         )
+       ORDER BY pir.created_at DESC`,
+      [id]
+    ),
   ]);
 
   const testDiscount = (pricing.test_discount_percent ?? 60) / 100;
   let openTotal = 0;
 
-  // Posts: historischer Preis aus cost_cents, Fallback für alte Posts ohne cost_cents
+  // Posts: historischer Preis aus cost_cents, full_cost_cents für Strikethrough
   const openPosts = rawPosts.map(p => {
     const calculated_price = p.cost_cents != null
       ? p.cost_cents
@@ -59,7 +70,11 @@ export async function GET(req, { params }) {
   const membershipTotal = openCycles.reduce((sum, c) => sum + c.amount_cents, 0);
   openTotal += membershipTotal;
 
-  return NextResponse.json({ pricing, periods, openPosts, openTotal, openCycles, membershipTotal });
+  // Bild-Regenerierungen
+  const regenTotal = openRegens.reduce((sum, r) => sum + r.cost_cents, 0);
+  openTotal += regenTotal;
+
+  return NextResponse.json({ pricing, periods, openPosts, openTotal, openCycles, membershipTotal, openRegens, regenTotal });
 }
 
 export async function POST(req, { params }) {

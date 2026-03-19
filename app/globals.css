@@ -414,6 +414,10 @@ body {
   from { opacity: 0; transform: translateY(-16px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes slideUpPill {
+  from { opacity: 0; transform: translateY(24px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 @keyframes toastTimer {
   from { width: 100%; }
   to { width: 0%; }

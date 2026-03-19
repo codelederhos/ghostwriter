@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import AdminSidebar from "./AdminSidebar";
+import PipelinePill from "./PipelinePill";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function AdminLayout({ children }) {
       <div className="admin-main">
         {children}
       </div>
+      <PipelinePill />
     </div>
   );
 }

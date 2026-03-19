@@ -52,6 +52,8 @@ export default function TenantDetailPage() {
   const [modelLabels, setModelLabels] = useState({});
   const [dotPhase, setDotPhase] = useState(0);
   const [displayTotal, setDisplayTotal] = useState(0);
+  const [regenModal, setRegenModal] = useState(null); // { postId, postTitle, imageUrl, regenPrice }
+  const [regenLoading, setRegenLoading] = useState(false);
   const pollRef = useRef(null);
   const displayTotalRef = useRef(0);
 
@@ -67,6 +69,7 @@ export default function TenantDetailPage() {
   useEffect(() => {
     function onKey(e) {
       if (e.key !== "Escape") return;
+      if (regenModal && !regenLoading) { setRegenModal(null); return; }
       if (postPreview) { setPostPreview(null); return; }
       if (showTestModal && !testRunning) { setShowTestModal(false); return; }
       if (deleteConfirm) { setDeleteConfirm(null); return; }
@@ -262,6 +265,29 @@ export default function TenantDetailPage() {
     loadRefImages();
   }
 
+  async function regenerateImage() {
+    if (!regenModal) return;
+    setRegenLoading(true);
+    try {
+      const res = await fetch(`/api/tenants/${id}/posts/${regenModal.postId}/regenerate-image`, { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        // Post in tenantPosts aktualisieren
+        setTenantPosts(posts => posts?.map(p =>
+          p.id === regenModal.postId ? { ...p, image_url: data.imageUrl } : p
+        ));
+        loadBilling();
+        showMsg("Bild erfolgreich neu generiert");
+        setRegenModal(null);
+      } else {
+        showMsg(data.error || "Fehler beim Generieren", "error");
+      }
+    } catch (e) {
+      showMsg(e.message, "error");
+    }
+    setRegenLoading(false);
+  }
+
   async function loadUsers() {
     const res = await fetch("/api/tenants", {
       method: "POST",
@@ -335,6 +361,15 @@ export default function TenantDetailPage() {
 
     // Fortschritts-Steps: Delays proportional zur geschätzten Gesamtdauer
     const estimated = settings.avg_pipeline_ms ? Math.round(settings.avg_pipeline_ms * 1.1) : 90000;
+
+    // Pill-State in localStorage speichern — PipelinePill liest das seitenübergreifend
+    try {
+      localStorage.setItem("gw_pipeline", JSON.stringify({
+        tenantId: id, tenantName: tenant?.name, startedAt: start,
+        estimatedMs: estimated, startISO, status: "running",
+      }));
+      window.dispatchEvent(new Event("gw_pipeline_update"));
+    } catch { /* ignore */ }
     const steps = [
       { frac: 0.00, step: 1 },   // Profil
       { frac: 0.10, step: 2 },   // Thema & Angle
@@ -650,9 +685,9 @@ export default function TenantDetailPage() {
                         <p className="text-xs text-muted-foreground">{p.category} · {p.angle} · {new Date(p.created_at).toLocaleDateString("de")}</p>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {p.is_test && billingData.pricing?.post_price_cents && p.calculated_price < billingData.pricing.post_price_cents && (
+                        {p.is_test && p.full_cost_cents > 0 && p.calculated_price < p.full_cost_cents && (
                           <span className="text-[10px] text-muted-foreground/50 line-through tabular-nums">
-                            {(billingData.pricing.post_price_cents / 100).toFixed(2)} €
+                            {(p.full_cost_cents / 100).toFixed(2)} €
                           </span>
                         )}
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full tabular-nums ${
@@ -674,6 +709,17 @@ export default function TenantDetailPage() {
                     </div>
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
                       {(c.amount_cents / 100).toFixed(2)} €
+                    </span>
+                  </div>
+                ))}
+                {billingData.openRegens?.length > 0 && billingData.openRegens.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between py-2 px-2 text-muted-foreground">
+                    <div>
+                      <p className="text-sm">Bild neu generiert</p>
+                      <p className="text-xs text-muted-foreground/70 line-clamp-1">{r.post_title}</p>
+                    </div>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 tabular-nums">
+                      {(r.cost_cents / 100).toFixed(2)} €
                     </span>
                   </div>
                 ))}
@@ -1512,12 +1558,27 @@ export default function TenantDetailPage() {
                       onClick={() => loadPostPreview(p.id)}
                       className={`border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}
                     >
-                      <td className="px-4 py-3">
-                        {p.image_url ? (
-                          <img src={p.image_url} alt="" className="w-8 h-8 rounded object-cover" />
-                        ) : (
-                          <div className="w-8 h-8 rounded bg-muted" />
-                        )}
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <div
+                          className="relative w-8 h-8 group"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const regenPrice = billingData?.pricing?.image_regen_price_cents ?? 100;
+                            setRegenModal({ postId: p.id, postTitle: p.blog_title, imageUrl: p.image_url, regenPrice });
+                          }}
+                        >
+                          {p.image_url ? (
+                            <img src={p.image_url} alt="" className="w-8 h-8 rounded object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-muted" />
+                          )}
+                          <div className="absolute inset-0 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" title="Bild neu generieren">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                              <path d="M21 3v5h-5" />
+                            </svg>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-medium text-foreground line-clamp-1">{p.blog_title}</span>
@@ -1913,6 +1974,60 @@ export default function TenantDetailPage() {
       {/* Post Preview Modal — global, 2 Tabs: Post & Blog */}
       {postPreview && typeof document !== "undefined" && createPortal(
         <PostPreviewModal post={postPreview} tenantSlug={tenant?.slug} onClose={() => setPostPreview(null)} />,
+        document.body
+      )}
+
+      {/* Bild-Regenerierungs-Modal */}
+      {regenModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Preview */}
+            {regenModal.imageUrl ? (
+              <div className="relative">
+                <img src={regenModal.imageUrl} alt="" className="w-full h-36 object-cover" />
+                {regenLoading && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <p className="text-white text-xs">Bild wird generiert…</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : regenLoading ? (
+              <div className="h-36 bg-muted flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="h-36 bg-muted flex items-center justify-center text-muted-foreground text-sm">Kein Bild</div>
+            )}
+            <div className="p-5">
+              <h3 className="font-semibold text-sm mb-1">Bild neu generieren</h3>
+              <p className="text-xs text-muted-foreground line-clamp-2 mb-4">{regenModal.postTitle}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-indigo-600">
+                  {((regenModal.regenPrice ?? 100) / 100).toFixed(2)} €
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setRegenModal(null)}
+                    disabled={regenLoading}
+                    className="btn-ghost text-sm"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    onClick={regenerateImage}
+                    disabled={regenLoading}
+                    className="btn-primary text-sm"
+                  >
+                    {regenLoading ? "Generiert…" : "Generieren"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
         document.body
       )}
     </div>

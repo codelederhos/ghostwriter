@@ -212,7 +212,7 @@ export default function SettingsPage() {
           </p>
           {pricing && (
             <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-5 gap-3">
                 <div className="form-group">
                   <label className="form-label">Pro Post (Cent)</label>
                   <input className="form-input text-sm" type="number" value={pricing.post_price_cents || 0}
@@ -236,6 +236,12 @@ export default function SettingsPage() {
                   <input className="form-input text-sm" type="number" value={pricing.test_discount_percent ?? 60} min={0} max={100}
                     onChange={(e) => setPricing({ ...pricing, test_discount_percent: parseInt(e.target.value) || 0 })} />
                   <p className="text-[11px] text-muted-foreground/60 mt-1">Test-Posts zahlen {100 - (pricing.test_discount_percent ?? 60)}%</p>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Bild-Regen (Cent)</label>
+                  <input className="form-input text-sm" type="number" value={pricing.image_regen_price_cents ?? 100} min={0}
+                    onChange={(e) => setPricing({ ...pricing, image_regen_price_cents: parseInt(e.target.value) || 0 })} />
+                  <p className="text-[11px] text-muted-foreground/60 mt-1">{((pricing.image_regen_price_cents ?? 100) / 100).toFixed(2)} €</p>
                 </div>
               </div>
               <button onClick={async () => {
