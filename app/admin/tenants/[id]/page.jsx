@@ -51,7 +51,9 @@ export default function TenantDetailPage() {
   const [testElapsedMs, setTestElapsedMs] = useState(0);
   const [modelLabels, setModelLabels] = useState({});
   const [dotPhase, setDotPhase] = useState(0);
+  const [displayTotal, setDisplayTotal] = useState(0);
   const pollRef = useRef(null);
+  const displayTotalRef = useRef(0);
 
   function showMsg(text, type = "success") {
     setMsg(text);
@@ -89,6 +91,24 @@ export default function TenantDetailPage() {
 
   // Poll-Cleanup bei Component-Unmount
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  // Animated cost counter: zählt zur neuen Summe hoch wenn billingData sich ändert
+  useEffect(() => {
+    const target = billingData?.openTotal ?? 0;
+    const from = displayTotalRef.current;
+    if (from === target) return;
+    const duration = 800;
+    const startTime = performance.now();
+    const tick = (now) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      const val = Math.round(from + (target - from) * eased);
+      displayTotalRef.current = t < 1 ? val : target;
+      setDisplayTotal(displayTotalRef.current);
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [billingData?.openTotal]);
 
   async function loadModelLabels() {
     try {
@@ -153,8 +173,8 @@ export default function TenantDetailPage() {
     setBillingData(data);
   }
 
-  async function loadTenantPosts() {
-    if (tenantPosts !== null) return;
+  async function loadTenantPosts(force = false) {
+    if (tenantPosts !== null && !force) return;
     try {
       const res = await fetch(`/api/admin/posts?tenantId=${id}`);
       const data = await res.json();
@@ -365,6 +385,9 @@ export default function TenantDetailPage() {
             durationMs,
           });
           setSettings(s => ({ ...s, avg_pipeline_ms: durationMs }));
+          // Kosten + Posts automatisch aktualisieren (kein Reload nötig)
+          loadBilling();
+          loadTenantPosts(true);
         }
       } catch { /* Netzwerkfehler — weiter warten */ }
     }, 4000);
@@ -649,8 +672,8 @@ export default function TenantDetailPage() {
                 ))}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
                   <span className="text-sm font-semibold">Summe offen</span>
-                  <span className="text-sm font-bold text-amber-700">
-                    {((billingData.openTotal || 0) / 100).toFixed(2)} €
+                  <span className="text-sm font-bold text-amber-700 tabular-nums transition-all">
+                    {(displayTotal / 100).toFixed(2)} €
                   </span>
                 </div>
               </>
