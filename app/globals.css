@@ -96,7 +96,8 @@ body {
     @apply my-6 rounded-xl overflow-hidden;
   }
   .blog-prose figure.article-figure img {
-    @apply w-full h-auto object-cover;
+    @apply w-full object-cover;
+    max-height: 480px;
   }
 
   /* Blog — Inline-Quellenangabe [N] Pill */
@@ -338,6 +339,33 @@ body {
     content: "";
     @apply inline-block w-4 h-4 mr-1.5 align-middle rounded-full;
     background: #dcfce7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5l3 3 4-4' stroke='%2316a34a' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/10px no-repeat;
+  }
+
+  /* CTA-Block: Abschluss-Banner mit Button */
+  .blog-prose .cta-block {
+    @apply relative my-10 rounded-2xl overflow-hidden text-center;
+    padding: 2rem 2rem 1.75rem;
+    background: linear-gradient(135deg, hsl(var(--primary)/0.08) 0%, hsl(var(--primary)/0.03) 100%);
+    border: 1.5px solid hsl(var(--primary)/0.18);
+    box-shadow: 0 2px 16px hsl(var(--primary)/0.08);
+  }
+  .blog-prose .cta-block::before {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-[3px] rounded-t-2xl;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary)/0.5));
+  }
+  .blog-prose .cta-block__text {
+    @apply text-base font-medium text-foreground/80 mb-4 leading-relaxed;
+  }
+  .blog-prose .cta-block__btn {
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm text-white no-underline transition-all;
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)/0.85));
+    box-shadow: 0 3px 12px hsl(var(--primary)/0.35);
+  }
+  .blog-prose .cta-block__btn:hover {
+    @apply no-underline;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px hsl(var(--primary)/0.4);
   }
 
   /* ── Dashboard Widgets ──────────────────────────────── */
