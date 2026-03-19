@@ -1548,6 +1548,7 @@ export default function TenantDetailPage() {
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Sprache</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Wörter</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Bilder</th>
+                    <th className="text-center px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">QA</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Datum</th>
                   </tr>
@@ -1593,6 +1594,18 @@ export default function TenantDetailPage() {
                         {p.word_count != null ? p.word_count.toLocaleString("de") : "—"}
                       </td>
                       <td className="px-4 py-3 text-right text-muted-foreground hidden lg:table-cell">{p.image_count ?? "—"}</td>
+                      <td className="px-4 py-3 text-center hidden lg:table-cell">
+                        {p.qa_score != null ? (
+                          <span
+                            title={p.qa_issues?.length ? p.qa_issues.join("\n") : "Keine Issues"}
+                            className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold cursor-help ${
+                              p.qa_score >= 8 ? "bg-emerald-100 text-emerald-700"
+                              : p.qa_score >= 5 ? "bg-amber-100 text-amber-700"
+                              : "bg-red-100 text-red-700"
+                            }`}
+                          >{p.qa_score}</span>
+                        ) : <span className="text-muted-foreground/40">—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={
                           p.status === "published" ? "badge badge-success"
