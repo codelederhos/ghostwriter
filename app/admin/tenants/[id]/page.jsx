@@ -621,7 +621,7 @@ export default function TenantDetailPage() {
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         p.is_test ? "bg-violet-100 text-violet-700" : "bg-amber-100 text-amber-700"
                       }`}>
-                        {((p.calculated_price || billingData.pricing?.post_price_cents || 300) / 100).toFixed(2)} €
+                        {((p.calculated_price != null ? p.calculated_price : (billingData.pricing?.post_price_cents ?? 300)) / 100).toFixed(2)} €
                       </span>
                     </div>
                   ))}

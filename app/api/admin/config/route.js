@@ -26,5 +26,14 @@ export async function POST(req) {
      ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
     [key, JSON.stringify(value)]
   );
+
+  // Preisänderungen historisch festhalten — Preis pro Post bleibt beim Erstellungszeitpunkt eingefroren
+  if (key === "pricing") {
+    await query(
+      "INSERT INTO pricing_history (valid_from, pricing) VALUES (NOW(), $1)",
+      [JSON.stringify(value)]
+    );
+  }
+
   return NextResponse.json({ ok: true });
 }
