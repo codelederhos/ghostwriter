@@ -1670,7 +1670,10 @@ export default function TenantDetailPage() {
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span className="flex items-center gap-1.5 tabular-nums font-mono">
                         <Timer size={12} className="flex-shrink-0" />
-                        {fmtMs(testElapsedMs)} vergangen
+                        {fmtMs(testElapsedMs)}
+                        {estimated !== null && (
+                          <span className="text-muted-foreground/50">/ ca. {fmtMs(estimated)}</span>
+                        )}
                       </span>
                       <span className="tabular-nums font-mono tracking-widest text-primary/60 w-6 text-right">{dots}</span>
                     </div>
