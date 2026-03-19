@@ -3,26 +3,49 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import BlogWidgets from "./BlogWidgets";
 
+/** Extract FAQ items from <details><summary> blocks in body HTML */
+function extractFAQSchema(html) {
+  if (!html) return null;
+  const matches = [...html.matchAll(/<details[^>]*>[\s\S]*?<summary[^>]*>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/gi)];
+  if (!matches.length) return null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: matches.map((m) => ({
+      "@type": "Question",
+      name: m[1].replace(/<[^>]+>/g, "").trim(),
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: m[2].replace(/<[^>]+>/g, "").trim().slice(0, 500),
+      },
+    })),
+  };
+}
+
 export async function generateMetadata({ params }) {
   const { tenant, lang, slug } = params;
   const { rows: [t] } = await query("SELECT id FROM tenants WHERE slug = $1", [tenant]);
   if (!t) return {};
   const { rows: [post] } = await query(
-    "SELECT blog_title, blog_title_tag, blog_meta_description, image_url FROM ghostwriter_posts WHERE tenant_id = $1 AND language = $2 AND blog_slug = $3 AND status IN ('published', 'draft')",
+    "SELECT blog_title, blog_title_tag, blog_meta_description, image_url, status FROM ghostwriter_posts WHERE tenant_id = $1 AND language = $2 AND blog_slug = $3 AND status IN ('published', 'draft')",
     [t.id, lang, slug]
   );
   if (!post) return {};
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+  const canonicalUrl = `${baseUrl}/${tenant}/${lang}/blog/${slug}`;
+
   return {
     title: post.blog_title_tag || post.blog_title,
     description: post.blog_meta_description,
+    alternates: { canonical: canonicalUrl },
+    robots: post.status === "draft" ? { index: false, follow: false } : undefined,
     openGraph: {
       title: post.blog_title,
       description: post.blog_meta_description,
-      images: post.image_url ? [{ url: post.image_url, width: 1200, height: 900 }] : [],
+      images: post.image_url ? [{ url: post.image_url, width: 1536, height: 864 }] : [],
       type: "article",
-      url: `${baseUrl}/${tenant}/${lang}/blog/${slug}`,
+      url: canonicalUrl,
     },
   };
 }
@@ -56,15 +79,15 @@ export default async function BlogPostPage({ params }) {
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
 
-  // Schema.org structured data
+  // Schema.org: BlogPosting (spezifischer als Article — besser für Blog-SEO)
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "Article",
+    "@type": "BlogPosting",
     headline: post.blog_title,
     description: post.blog_meta_description,
-    image: post.image_url,
-    datePublished: post.published_at,
-    dateCreated: post.created_at,
+    image: post.image_url ? { "@type": "ImageObject", url: post.image_url, width: 1536, height: 864 } : undefined,
+    datePublished: post.published_at || post.created_at,
+    dateModified: post.updated_at || post.published_at || post.created_at,
     author: {
       "@type": "Organization",
       name: profile?.company_name || t.name,
@@ -73,16 +96,33 @@ export default async function BlogPostPage({ params }) {
     publisher: {
       "@type": "Organization",
       name: profile?.company_name || t.name,
+      url: profile?.website_url,
     },
     inLanguage: lang,
+    url: `${baseUrl}/${tenant}/${lang}/blog/${slug}`,
+    mainEntityOfPage: { "@type": "WebPage", "@id": `${baseUrl}/${tenant}/${lang}/blog/${slug}` },
   };
+
+  // FAQPage Schema (aus <details><summary> extrahiert)
+  const faqSchema = extractFAQSchema(post.blog_body);
+
+  // Lesedauer berechnen
+  const wordCount = post.blog_body ? post.blog_body.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length : 0;
+  const readingMinutes = Math.max(1, Math.round(wordCount / 200));
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      {/* Canonical + Preload Hero-Image */}
+      <link rel="canonical" href={`${baseUrl}/${tenant}/${lang}/blog/${slug}`} />
+      {post.image_url && <link rel="preload" as="image" href={post.image_url} />}
+
+      {/* Schema.org: BlogPosting */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      {/* Schema.org: FAQPage (wenn FAQs vorhanden) */}
+      {faqSchema && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+      )}
 
       {/* hreflang */}
       {alternates.map((alt) => (
@@ -101,9 +141,21 @@ export default async function BlogPostPage({ params }) {
             <Link href={`/${tenant}/${lang}/blog`} className="font-bold text-lg">
               {t.name}
             </Link>
-            <Link href={`/${tenant}/${lang}/blog`} className="text-sm text-muted-foreground hover:text-foreground">
-              Alle Artikel
-            </Link>
+            <div className="flex items-center gap-3">
+              {/* Sprachumschalter im Header */}
+              {alternates.filter(a => a.language !== lang).map((alt) => (
+                <Link
+                  key={alt.language}
+                  href={`/${tenant}/${alt.language}/blog/${alt.blog_slug}`}
+                  className="text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  {alt.language.toUpperCase()}
+                </Link>
+              ))}
+              <Link href={`/${tenant}/${lang}/blog`} className="text-sm text-muted-foreground hover:text-foreground">
+                Alle Artikel
+              </Link>
+            </div>
           </div>
         </header>
 
@@ -118,8 +170,18 @@ export default async function BlogPostPage({ params }) {
         <article className="max-w-3xl mx-auto px-6 py-12">
           {/* Meta */}
           <div className="mb-6">
-            <p className="text-sm text-muted-foreground mb-2">
-              {post.category} &middot; {new Date(post.published_at || post.created_at).toLocaleDateString(lang, { year: "numeric", month: "long", day: "numeric" })}
+            <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
+              <span>{post.category}</span>
+              <span className="text-muted-foreground/40">&middot;</span>
+              <span>{new Date(post.published_at || post.created_at).toLocaleDateString(lang, { year: "numeric", month: "long", day: "numeric" })}</span>
+              <span className="text-muted-foreground/40">&middot;</span>
+              <span>{readingMinutes} min Lesezeit</span>
+              {post.updated_at && post.published_at && new Date(post.updated_at) > new Date(post.published_at) && (
+                <>
+                  <span className="text-muted-foreground/40">&middot;</span>
+                  <span className="text-xs">Aktualisiert {new Date(post.updated_at).toLocaleDateString(lang, { year: "numeric", month: "long", day: "numeric" })}</span>
+                </>
+              )}
             </p>
             <h1 className="text-3xl font-bold leading-tight mb-3">{post.blog_title}</h1>
             {post.blog_meta_description && (
@@ -136,6 +198,7 @@ export default async function BlogPostPage({ params }) {
                 className="w-full h-full object-cover"
                 width={1536}
                 height={864}
+                fetchPriority="high"
               />
             </div>
           ) : (
@@ -156,31 +219,8 @@ export default async function BlogPostPage({ params }) {
           )}
 
           {/* Body */}
-          <div
-            className="blog-prose"
-            dangerouslySetInnerHTML={{ __html: post.blog_body }}
-          />
+          <div className="blog-prose" dangerouslySetInnerHTML={{ __html: post.blog_body }} />
           <BlogWidgets />
-
-          {/* Language alternates */}
-          {alternates.length > 1 && (
-            <div className="mt-12 pt-6 border-t border-border">
-              <p className="text-sm text-muted-foreground mb-2">Auch verfügbar in:</p>
-              <div className="flex gap-2">
-                {alternates
-                  .filter((a) => a.language !== lang)
-                  .map((alt) => (
-                    <Link
-                      key={alt.language}
-                      href={`/${tenant}/${alt.language}/blog/${alt.blog_slug}`}
-                      className="px-3 py-1 rounded-full border border-border text-sm hover:bg-muted transition-colors"
-                    >
-                      {alt.language.toUpperCase()}
-                    </Link>
-                  ))}
-              </div>
-            </div>
-          )}
         </article>
       </div>
     </>

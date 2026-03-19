@@ -85,7 +85,7 @@ async function updateSettings({ tenantId, settings }) {
   const s = settings;
   // Encrypt sensitive fields
   const encryptedFields = {};
-  for (const field of ["text_api_key", "image_api_key", "gbp_oauth_token", "gbp_refresh_token"]) {
+  for (const field of ["text_api_key", "image_api_key", "gbp_oauth_token", "gbp_refresh_token", "client_api_key"]) {
     if (s[field] !== undefined && s[field] !== null && s[field] !== "") {
       encryptedFields[field] = encrypt(s[field]);
     }
@@ -111,6 +111,10 @@ async function updateSettings({ tenantId, settings }) {
       backlinks_enabled = COALESCE($15, backlinks_enabled),
       telegram_enabled = COALESCE($16, telegram_enabled),
       email_enabled = COALESCE($17, email_enabled),
+      client_api_url = COALESCE($18, client_api_url),
+      client_api_key = COALESCE($19, client_api_key),
+      client_push_enabled = COALESCE($20, client_push_enabled),
+      refresh_enabled = COALESCE($21, refresh_enabled),
       updated_at = NOW()
     WHERE tenant_id = $1`,
     [
@@ -121,6 +125,10 @@ async function updateSettings({ tenantId, settings }) {
       merged.frequency_hours, merged.is_active,
       merged.billing_mode, merged.backlinks_enabled,
       merged.telegram_enabled, merged.email_enabled,
+      merged.client_api_url || null,
+      merged.client_api_key || null,
+      merged.client_push_enabled !== undefined ? merged.client_push_enabled : null,
+      merged.refresh_enabled !== undefined ? merged.refresh_enabled : null,
     ]
   );
 

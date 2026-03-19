@@ -15,6 +15,7 @@ export async function GET(req) {
   const baseCols = `
     gp.id, gp.blog_title, gp.blog_slug, gp.language, gp.category, gp.angle,
     gp.status, gp.is_test, gp.created_at, gp.published_at, gp.image_url,
+    gp.qa_score, gp.qa_issues,
     t.name as tenant_name, t.slug as tenant_slug`;
 
   const countCols = `

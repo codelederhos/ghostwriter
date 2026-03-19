@@ -243,6 +243,12 @@ export default function SettingsPage() {
                     onChange={(e) => setPricing({ ...pricing, image_regen_price_cents: parseInt(e.target.value) || 0 })} />
                   <p className="text-[11px] text-muted-foreground/60 mt-1">{((pricing.image_regen_price_cents ?? 100) / 100).toFixed(2)} €</p>
                 </div>
+                <div className="form-group">
+                  <label className="form-label">Refresh-Rabatt (%)</label>
+                  <input className="form-input text-sm" type="number" value={pricing.refresh_discount_percent ?? 40} min={0} max={100}
+                    onChange={(e) => setPricing({ ...pricing, refresh_discount_percent: parseInt(e.target.value) || 0 })} />
+                  <p className="text-[11px] text-muted-foreground/60 mt-1">Refresh kostet {100 - (pricing.refresh_discount_percent ?? 40)}% des Postpreises</p>
+                </div>
               </div>
               <button onClick={async () => {
                 setSaving(true);

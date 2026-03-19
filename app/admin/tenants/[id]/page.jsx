@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
-import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer } from "lucide-react";
+import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer, Download } from "lucide-react";
 import Link from "next/link";
 import { fmtMs } from "@/lib/utils/format";
 
@@ -55,6 +55,7 @@ export default function TenantDetailPage() {
   const [displayTotal, setDisplayTotal] = useState(0);
   const [regenModal, setRegenModal] = useState(null); // { postId, postTitle, imageUrl, regenPrice }
   const [regenLoading, setRegenLoading] = useState(false);
+  const [exportModal, setExportModal] = useState(null); // { postId, postTitle, upgradeCents, fullPriceCents }
   const pollRef = useRef(null);
   const displayTotalRef = useRef(0);
 
@@ -70,6 +71,7 @@ export default function TenantDetailPage() {
   useEffect(() => {
     function onKey(e) {
       if (e.key !== "Escape") return;
+      if (exportModal) { setExportModal(null); return; }
       if (regenModal && !regenLoading) { setRegenModal(null); return; }
       if (postPreview) { setPostPreview(null); return; }
       if (showTestModal && !testRunning) { setShowTestModal(false); return; }
@@ -289,6 +291,45 @@ export default function TenantDetailPage() {
     setRegenLoading(false);
   }
 
+  async function handleExportHtml(postId, postTitle) {
+    try {
+      const res = await fetch(`/api/tenants/${id}/posts/${postId}/export-html`);
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        const data = await res.json();
+        if (data.isTest) {
+          setExportModal({ postId, postTitle, upgradeCents: data.upgradeCents, fullPriceCents: data.fullPriceCents });
+        }
+      } else {
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${(postTitle || postId).replace(/[^a-z0-9]/gi, "-").toLowerCase()}.html`;
+        a.click();
+        showMsg("HTML exportiert");
+      }
+    } catch (e) {
+      showMsg(e.message, "error");
+    }
+  }
+
+  async function confirmExportUpgrade() {
+    if (!exportModal) return;
+    try {
+      const res = await fetch(`/api/tenants/${id}/posts/${exportModal.postId}/export-html?upgrade=1`);
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(exportModal.postTitle || exportModal.postId).replace(/[^a-z0-9]/gi, "-").toLowerCase()}.html`;
+      a.click();
+      setExportModal(null);
+      loadBilling();
+      showMsg("HTML exportiert — Post zur Vollversion aufgewertet");
+    } catch (e) {
+      showMsg(e.message, "error");
+    }
+  }
+
   async function loadUsers() {
     const res = await fetch("/api/tenants", {
       method: "POST",
@@ -474,6 +515,7 @@ export default function TenantDetailPage() {
     { key: "posts", label: "Posts" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
+    { key: "client", label: "Client-Integration" },
     { key: "users", label: "Zugänge" },
   ];
 
@@ -911,6 +953,26 @@ export default function TenantDetailPage() {
                 </div>
                 <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">€0</span>
               </label>
+
+              {/* Content Refresh — unabhängiger Toggle */}
+              <div
+                className={`flex items-center justify-between p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                  settings.refresh_enabled ? "border-emerald-400 bg-emerald-50" : "border-border hover:border-muted-foreground/30"
+                }`}
+                onClick={() => setSettings({ ...settings, refresh_enabled: !settings.refresh_enabled })}
+              >
+                <div>
+                  <p className="font-medium text-sm">Content Refresh</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Posts älter als 180 Tage werden automatisch mit neuen Fakten aktualisiert. Kosten: Rabattiert (in Settings konfigurierbar).
+                  </p>
+                </div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ml-4 ${
+                  settings.refresh_enabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
+                }`}>
+                  {settings.refresh_enabled ? "Aktiv" : "Inaktiv"}
+                </span>
+              </div>
 
             </div>
           </div>
@@ -1553,6 +1615,7 @@ export default function TenantDetailPage() {
                     <th className="text-center px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">QA</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Datum</th>
+                    <th className="px-3 py-3 hidden lg:table-cell w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1625,6 +1688,15 @@ export default function TenantDetailPage() {
                       <td className="px-4 py-3 text-right text-muted-foreground text-xs whitespace-nowrap">
                         {new Date(p.created_at).toLocaleDateString("de")}
                       </td>
+                      <td className="px-3 py-3 hidden lg:table-cell" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleExportHtml(p.id, p.blog_title)}
+                          className="dw-icon-btn"
+                          title="Als HTML exportieren"
+                        >
+                          <Download size={13} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1670,6 +1742,102 @@ export default function TenantDetailPage() {
               <p className="text-sm text-muted-foreground">Noch keine Kundenzugänge angelegt.</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Tab: Client-Integration */}
+      {tab === "client" && (
+        <div className="space-y-6">
+          {/* Client Push API */}
+          <div className="admin-card space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold">Content Push (Webhook)</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Nach jeder Veröffentlichung sendet Ghostwriter den Post automatisch an die Website des Kunden.
+                </p>
+              </div>
+              <ToggleSwitch
+                checked={settings.client_push_enabled || false}
+                onChange={(v) => setSettings({ ...settings, client_push_enabled: v })}
+              />
+            </div>
+            <div className={`transition-all duration-300 overflow-hidden ${settings.client_push_enabled ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"}`}>
+              <div className="space-y-3 pt-1">
+                <FormField
+                  label="Webhook URL"
+                  value={settings.client_api_url}
+                  onChange={(v) => setSettings({ ...settings, client_api_url: v })}
+                  placeholder="https://meinewebsite.de/api/ghostwriter"
+                />
+                <div className="form-group">
+                  <label className="form-label">API Key (Bearer Token)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      className="form-input flex-1 text-sm"
+                      value={settings.client_api_key || ""}
+                      onChange={(e) => setSettings({ ...settings, client_api_key: e.target.value })}
+                      placeholder="Automatisch generiert oder manuell"
+                    />
+                    <button
+                      type="button"
+                      className="btn-outline text-xs flex-shrink-0"
+                      onClick={() => setSettings({ ...settings, client_api_key: crypto.randomUUID() })}
+                    >
+                      Generieren
+                    </button>
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/40 border border-border/50 text-xs">
+                  <p className="font-medium mb-1.5">Payload (POST an Webhook):</p>
+                  <pre className="text-muted-foreground font-mono text-[11px] leading-relaxed overflow-x-auto">{`{ "event": "post_published", "post": { "id": "...", "title": "...", "slug": "...", "body_html": "...", "language": "de", "url": "https://..." } }`}</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Blog-Widget Embed */}
+          <div className="admin-card space-y-3">
+            <div>
+              <h3 className="font-semibold">Blog-Widget Embed</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Zeigt die letzten Blog-Posts auf jeder beliebigen Website an — kein Backend nötig.
+              </p>
+            </div>
+            {(() => {
+              const base = typeof window !== "undefined" ? window.location.origin : "";
+              const embedCode = `<div id="gw-blog"></div>\n<script src="${base}/api/public/${tenant?.slug}/embed.js?lang=de&limit=5&style=cards"></script>`;
+              return (
+                <div className="relative">
+                  <pre className="text-[11px] font-mono bg-muted/40 border border-border rounded-lg px-4 py-3 overflow-x-auto text-muted-foreground leading-relaxed">{embedCode}</pre>
+                  <button
+                    className="absolute top-2 right-2 btn-outline text-[10px]"
+                    onClick={() => { navigator.clipboard.writeText(embedCode); showMsg("Snippet kopiert"); }}
+                  >
+                    Kopieren
+                  </button>
+                </div>
+              );
+            })()}
+            <p className="text-xs text-muted-foreground">
+              Parameter: <code className="bg-muted px-1 rounded">lang</code> = Sprache &nbsp;·&nbsp; <code className="bg-muted px-1 rounded">limit</code> = Anzahl &nbsp;·&nbsp; <code className="bg-muted px-1 rounded">style</code> = cards | list | minimal
+            </p>
+          </div>
+
+          {/* Public API */}
+          <div className="admin-card space-y-3">
+            <div>
+              <h3 className="font-semibold">Public API</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Posts als JSON — öffentlich, kein API-Key nötig.</p>
+            </div>
+            <div className="space-y-1.5 font-mono text-xs bg-muted/40 border border-border rounded-lg px-4 py-3">
+              <p><span className="text-emerald-600 font-bold">GET</span> <span className="text-muted-foreground">/api/public/{tenant?.slug}/de/posts</span></p>
+              <p><span className="text-emerald-600 font-bold">GET</span> <span className="text-muted-foreground">/api/public/{tenant?.slug}/de/posts/[slug]</span></p>
+            </div>
+          </div>
+
+          <button onClick={saveSettings} className="btn-primary" disabled={saving}><Save size={14} /> Speichern</button>
         </div>
       )}
 
@@ -2042,6 +2210,35 @@ export default function TenantDetailPage() {
                     {regenLoading ? "Generiert…" : "Generieren"}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* HTML Export Modal — Test-Post Upgrade */}
+      {exportModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setExportModal(null)}>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5">
+              <h3 className="font-semibold mb-3">HTML Export</h3>
+              <div className="p-3 rounded-lg bg-violet-50 border border-violet-200 mb-4">
+                <p className="text-sm font-medium text-violet-800">Test-Post → Vollversion</p>
+                <p className="text-xs text-violet-700 mt-1">
+                  Dieser Test-Post wird beim Export zur Vollversion aufgewertet. Bereits gezahlte Test-Kosten werden angerechnet.
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{exportModal.postTitle}</p>
+              <div className="flex items-center justify-between mb-5">
+                <span className="text-sm text-muted-foreground">Aufpreis:</span>
+                <span className="text-lg font-bold text-violet-700">{((exportModal.upgradeCents || 0) / 100).toFixed(2)} €</span>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setExportModal(null)} className="btn-ghost flex-1">Abbrechen</button>
+                <button onClick={confirmExportUpgrade} className="btn-primary flex-1">
+                  <Download size={13} /> Exportieren
+                </button>
               </div>
             </div>
           </div>
