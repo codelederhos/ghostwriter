@@ -66,7 +66,7 @@ export default function TenantDetailPage() {
     setTimeout(() => setMsg(""), type === "error" ? 8000 : 4000);
   }
 
-  useEffect(() => { loadTenant(); loadModelLabels(); }, [id]);
+  useEffect(() => { loadTenant(); loadModelLabels(); loadBilling(); loadTenantPosts(); }, [id]);
 
   // ESC schliesst alle offenen Modals
   useEffect(() => {
@@ -507,14 +507,26 @@ export default function TenantDetailPage() {
     </div>
   );
 
+  // Pills berechnen
+  const openEuro = billingData?.openTotal > 0 ? `${(billingData.openTotal / 100).toFixed(2)} €` : null;
+  const providerPill = settings.billing_mode === "platform" ? "Platform"
+    : [settings.text_api_key, settings.image_api_key].filter(Boolean).length > 0
+      ? `${[settings.text_api_key, settings.image_api_key].filter(Boolean).length} Key${[settings.text_api_key, settings.image_api_key].filter(Boolean).length > 1 ? "s" : ""}`
+      : null;
+  const activeTopics = topics.filter(t => t.is_active !== false);
+  const avgAnglesCount = activeTopics.length > 0
+    ? Math.round(activeTopics.reduce((s, t) => s + (t.angles || DEFAULT_ANGLES).filter(a => a.active !== false).length, 0) / activeTopics.length)
+    : 5;
+  const topicsCombos = activeTopics.length * avgAnglesCount * 4;
+
   const tabs = [
     { key: "profile", label: "Firmenprofil" },
-    { key: "settings", label: "API & Provider" },
-    { key: "billing", label: "Kosten" },
+    { key: "settings", label: "API & Provider", pill: providerPill, pillColor: "blue" },
+    { key: "billing", label: "Kosten", pill: openEuro, pillColor: "amber" },
     { key: "ctas", label: "CTAs" },
-    { key: "topics", label: "Themen" },
+    { key: "topics", label: "Themen", pill: topicsCombos > 0 ? `${topicsCombos}` : null, pillColor: "emerald" },
     { key: "images", label: "Bilder" },
-    { key: "posts", label: "Posts" },
+    { key: "posts", label: "Posts", pill: tenantPosts !== null ? `${tenantPosts.length}` : null, pillColor: "default" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
     { key: "client", label: "Client-Integration" },
@@ -555,18 +567,32 @@ export default function TenantDetailPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-border">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => { setTab(t.key); if (t.key === "users") loadUsers(); if (t.key === "images") loadRefImages(); if (t.key === "billing") loadBilling(); if (t.key === "posts") loadTenantPosts(); }}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex gap-1 mb-6 border-b border-border overflow-x-auto">
+        {tabs.map((t) => {
+          const pillColors = {
+            amber: "bg-amber-100 text-amber-700",
+            blue: "bg-blue-100 text-blue-700",
+            emerald: "bg-emerald-100 text-emerald-700",
+            default: "bg-muted text-muted-foreground",
+          };
+          const pc = pillColors[t.pillColor] || pillColors.default;
+          return (
+            <button
+              key={t.key}
+              onClick={() => { setTab(t.key); if (t.key === "users") loadUsers(); if (t.key === "images") loadRefImages(); if (t.key === "billing") loadBilling(); if (t.key === "posts") loadTenantPosts(); }}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
+                tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t.label}
+              {t.pill != null && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${pc}`}>
+                  {t.pill}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab: Profile */}
