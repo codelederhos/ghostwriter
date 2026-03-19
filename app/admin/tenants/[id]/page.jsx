@@ -1763,10 +1763,11 @@ export default function TenantDetailPage() {
                       <td className="px-4 py-3">
                         <span className={
                           p.status === "published" ? "badge badge-success"
+                          : p.status === "exported" ? "badge" + " " + "bg-blue-100 text-blue-700 border-blue-200"
                           : p.status === "draft" ? "badge badge-warning"
                           : p.status === "failed" ? "badge badge-error"
                           : "badge badge-neutral"
-                        }>{p.status}</span>
+                        }>{p.status === "exported" ? "exportiert" : p.status}</span>
                       </td>
                       <td className="px-4 py-3 text-right text-muted-foreground text-xs whitespace-nowrap">
                         {new Date(p.created_at).toLocaleDateString("de")}
@@ -2394,7 +2395,12 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="text-xs text-muted-foreground">{post.category}</span>
               {post.angle && <span className="text-xs text-muted-foreground">· {post.angle}</span>}
-              <span className={post.status === "published" ? "badge badge-success" : post.status === "failed" ? "badge badge-error" : "badge badge-warning"}>{post.status}</span>
+              <span className={
+                post.status === "published" ? "badge badge-success"
+                : post.status === "exported" ? "badge bg-blue-100 text-blue-700 border-blue-200"
+                : post.status === "failed" ? "badge badge-error"
+                : "badge badge-warning"
+              }>{post.status === "exported" ? "exportiert" : post.status}</span>
               {post.is_test && <span className="badge" style={{background:"#ede9fe",color:"#7c3aed"}}>Test</span>}
             </div>
           </div>

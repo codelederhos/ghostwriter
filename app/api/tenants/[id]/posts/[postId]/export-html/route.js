@@ -40,10 +40,11 @@ export async function GET(req, { params }) {
     const url = new URL(req.url);
     if (url.searchParams.get("upgrade") === "1") {
       await query(
-        `UPDATE ghostwriter_posts SET is_test = false, cost_cents = $2, updated_at = NOW() WHERE id = $1`,
+        `UPDATE ghostwriter_posts SET is_test = false, cost_cents = $2, status = 'exported', updated_at = NOW() WHERE id = $1`,
         [postId, postPrice]
       );
       post.is_test = false;
+      post.status = "exported";
       // Billing-Eintrag für Differenz
       await query(
         `INSERT INTO ghostwriter_log (tenant_id, post_id, step, status, message, duration_ms)
@@ -61,6 +62,15 @@ export async function GET(req, { params }) {
         upgradeCents,
       });
     }
+  }
+
+  // Status auf "exported" setzen wenn bisher draft
+  if (post.status === "draft") {
+    await query(
+      `UPDATE ghostwriter_posts SET status = 'exported', updated_at = NOW() WHERE id = $1`,
+      [postId]
+    );
+    post.status = "exported";
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
