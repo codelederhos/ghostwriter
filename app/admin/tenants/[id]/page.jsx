@@ -1574,7 +1574,13 @@ export default function TenantDetailPage() {
                           {p.image_url ? (
                             <img src={p.image_url} alt="" className="w-8 h-8 rounded object-cover" />
                           ) : (
-                            <div className="w-8 h-8 rounded bg-muted" />
+                            <div className="w-8 h-8 rounded bg-red-50 border border-red-200 flex items-center justify-center" title="Kein Bild — klicken zum Generieren">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-red-400">
+                                <rect x="3" y="5" width="18" height="14" rx="2" />
+                                <circle cx="12" cy="12" r="3" />
+                                <path d="M7 5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1" />
+                              </svg>
+                            </div>
                           )}
                           <div className="absolute inset-0 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" title="Bild neu generieren">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

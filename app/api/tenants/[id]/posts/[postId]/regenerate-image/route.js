@@ -47,9 +47,19 @@ export async function POST(req, { params }) {
 
   const costCents = await getRegenPrice();
   const slug = post.blog_slug || `post-${postId}`;
-  const prompt = post.image_alt_text
-    ? `Photorealistic, professional, no faces, no text. ${post.image_alt_text}`
-    : `Photorealistic, professional real estate image for: ${post.blog_title}. No text, no logos.`;
+
+  // System-Config für Modell laden
+  const { rows: sysRows } = await query(
+    "SELECT key, value FROM system_config WHERE key = 'image_models'"
+  );
+  const imageModelsCfg = sysRows[0]?.value ? JSON.parse(sysRows[0].value) : {};
+  if (!decrypted.image_model) {
+    decrypted.image_model = imageModelsCfg.openai?.model || "gpt-image-1";
+  }
+
+  const style = decrypted.image_style_prefix || "Shot on Canon 5D Mark IV 35mm f/2.8, golden hour natural light, Kodak Portra 400 film grain, authentic atmosphere, no faces, no text, no logos, no CGI";
+  const rawPrompt = post.image_prompt_1 || post.blog_title;
+  const prompt = `${style}. ${rawPrompt}`;
 
   try {
     const result = await generateImage(decrypted, prompt, `${slug}-regen`);

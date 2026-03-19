@@ -37,7 +37,7 @@ export default async function BlogPostPage({ params }) {
   if (!t) notFound();
 
   const { rows: [post] } = await query(
-    "SELECT * FROM ghostwriter_posts WHERE tenant_id = $1 AND language = $2 AND blog_slug = $3 AND status IN ('published', 'draft')",
+    "SELECT *, image_prompt_1 FROM ghostwriter_posts WHERE tenant_id = $1 AND language = $2 AND blog_slug = $3 AND status IN ('published', 'draft')",
     [t.id, lang, slug]
   );
   if (!post) notFound();
@@ -128,7 +128,7 @@ export default async function BlogPostPage({ params }) {
           </div>
 
           {/* Image */}
-          {post.image_url && (
+          {post.image_url ? (
             <div className="rounded-xl overflow-hidden mb-8 aspect-[16/9]">
               <img
                 src={post.image_url}
@@ -137,6 +137,21 @@ export default async function BlogPostPage({ params }) {
                 width={1536}
                 height={864}
               />
+            </div>
+          ) : (
+            <div
+              className="rounded-xl overflow-hidden mb-8 aspect-[16/9] bg-muted animate-pulse flex items-center justify-center"
+              role="img"
+              aria-label={post.image_alt_text || post.blog_title}
+              data-prompt={post.image_prompt_1 || ""}
+              data-post-id={post.id}
+              style={{ minHeight: "200px" }}
+            >
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted-foreground/30">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <circle cx="12" cy="12" r="3.5" />
+                <path d="M7 5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1" />
+              </svg>
             </div>
           )}
 
