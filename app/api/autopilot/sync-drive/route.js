@@ -5,7 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { listDriveImages, downloadDriveFile } from "@/lib/google/drive";
+import { listDriveImages, downloadAndConvertDriveFile } from "@/lib/google/drive";
 
 export const dynamic = "force-dynamic";
 
@@ -34,19 +34,19 @@ export async function POST(req) {
         );
         if (existing.length > 0) continue;
 
-        let localUrl;
+        let urls;
         try {
-          localUrl = await downloadDriveFile(file.id, tenant_id, file.mimeType);
+          urls = await downloadAndConvertDriveFile(file.id, tenant_id);
         } catch (err) {
           console.error(`[Drive Sync] Download fehlgeschlagen ${file.id}:`, err.message);
           continue;
         }
 
-        const publicUrl = `${process.env.NEXT_PUBLIC_BASE_URL || ""}${localUrl}`;
+        const base = process.env.NEXT_PUBLIC_BASE_URL || "";
         await query(
           `INSERT INTO tenant_reference_images (tenant_id, type, image_url, thumb_url, description, source, source_id)
            VALUES ($1, 'post', $2, $3, $4, 'drive', $5)`,
-          [tenant_id, publicUrl, file.thumbnailLink || publicUrl, file.name, file.id]
+          [tenant_id, base + urls.url, base + urls.thumbUrl, file.name, file.id]
         );
         added++;
       }
