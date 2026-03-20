@@ -63,6 +63,10 @@ export default function TenantDetailPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [gbpPostLoading, setGbpPostLoading] = useState(null); // postId or null
+  const [visionStatus, setVisionStatus] = useState("idle"); // idle | running | done
+  const [visionAnalyzed, setVisionAnalyzed] = useState(0);
+  const [visionTotal, setVisionTotal] = useState(0);
+  const visionPollRef = useRef(null);
 
   function showMsg(text, type = "success") {
     setMsg(text);
@@ -70,7 +74,7 @@ export default function TenantDetailPage() {
     setTimeout(() => setMsg(""), type === "error" ? 8000 : 4000);
   }
 
-  useEffect(() => { loadTenant(); loadModelLabels(); loadBilling(); loadTenantPosts(); loadRefImages(); loadGoogleStatus(); }, [id]);
+  useEffect(() => { loadTenant(); loadModelLabels(); loadBilling(); loadTenantPosts(); loadRefImages(); loadGoogleStatus(); loadAnalyzeStatus(); }, [id]);
 
   // Google Tab: URL-Param nach OAuth-Callback + Status laden
   useEffect(() => {
@@ -111,6 +115,28 @@ export default function TenantDetailPage() {
     };
   }, [googleStatus?.syncStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Vision-Analyse Polling
+  useEffect(() => {
+    if (visionStatus === "running") {
+      if (visionPollRef.current) return;
+      visionPollRef.current = setInterval(async () => {
+        const res = await fetch(`/api/tenants/${id}/images/analyze`);
+        const data = await res.json();
+        setVisionAnalyzed(data.analyzed || 0);
+        setVisionTotal(data.total || 0);
+        if (data.status !== "analyzing") {
+          setVisionStatus(data.status === "done" ? "done" : "idle");
+          clearInterval(visionPollRef.current);
+          visionPollRef.current = null;
+          loadRefImages();
+        }
+      }, 1500);
+    } else {
+      if (visionPollRef.current) { clearInterval(visionPollRef.current); visionPollRef.current = null; }
+    }
+    return () => { if (visionPollRef.current) { clearInterval(visionPollRef.current); visionPollRef.current = null; } };
+  }, [visionStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function loadGoogleStatus() {
     setGoogleLoading(true);
     try {
@@ -118,6 +144,17 @@ export default function TenantDetailPage() {
       setGoogleStatus(await res.json());
     } catch { setGoogleStatus({ connected: false }); }
     setGoogleLoading(false);
+  }
+
+  async function loadAnalyzeStatus() {
+    try {
+      const res = await fetch(`/api/tenants/${id}/images/analyze`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setVisionStatus(data.status === "analyzing" ? "running" : (data.status || "idle"));
+      setVisionAnalyzed(data.analyzed || 0);
+      setVisionTotal(data.total || 0);
+    } catch { /* ignore */ }
   }
 
   async function googleAction(action, extra = {}) {
@@ -1743,15 +1780,73 @@ export default function TenantDetailPage() {
 
           {/* Post-Bilder */}
           <div className="admin-card">
-            <h3 className="font-semibold mb-1">Post-Referenzbilder</h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Eigene Fotos hochladen — passt das Bild zum Artikel, wird es direkt genutzt (kein KI-Generate). Kein passendes Bild: KI generiert neu.
-              <br />Titelbild wird auch für Posts &amp; Google verwendet.
-            </p>
+            <div className="flex items-start justify-between gap-4 mb-1">
+              <div>
+                <h3 className="font-semibold">Post-Referenzbilder</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Eigene Fotos hochladen — passt das Bild zum Artikel, wird es direkt genutzt (kein KI-Generate). Kein passendes Bild: KI generiert neu.
+                </p>
+              </div>
+              {refImages.post.length > 0 && (
+                <button
+                  className={`shrink-0 text-sm px-3 py-1.5 rounded-lg font-medium transition-all ${
+                    visionStatus === "running"
+                      ? "bg-violet-100 text-violet-700 cursor-not-allowed"
+                      : "bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100"
+                  }`}
+                  disabled={visionStatus === "running"}
+                  onClick={async () => {
+                    const res = await fetch(`/api/tenants/${id}/images/analyze`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ onlyUnanalyzed: true }) });
+                    const data = await res.json();
+                    if (data.ok && data.total > 0) {
+                      setVisionStatus("running");
+                      setVisionAnalyzed(0);
+                      setVisionTotal(data.total);
+                    } else if (data.total === 0) {
+                      showMsg("Alle Bilder bereits analysiert ✓");
+                    } else {
+                      showMsg("Analyse fehlgeschlagen", "error");
+                    }
+                  }}
+                >
+                  {visionStatus === "running" ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                      {visionAnalyzed}/{visionTotal || "…"}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      ✨ Auto-beschreiben
+                      {visionTotal > 0 && visionAnalyzed < visionTotal && (
+                        <span className="text-[10px] bg-violet-200 text-violet-800 rounded-full px-1.5">{visionTotal - visionAnalyzed}</span>
+                      )}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Vision-Analyse Fortschritt */}
+            {visionStatus === "running" && visionTotal > 0 && (
+              <div className="space-y-1 mb-3">
+                <div className="h-1 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-violet-500 rounded-full transition-all duration-700"
+                    style={{ width: `${Math.round((visionAnalyzed / visionTotal) * 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground text-right">{Math.round((visionAnalyzed / visionTotal) * 100)}% · KI analysiert Bilder…</p>
+              </div>
+            )}
+            {visionStatus === "done" && (
+              <div className="mb-3 text-xs text-emerald-700 font-medium flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {visionAnalyzed} Bilder automatisch beschrieben ✓
+              </div>
+            )}
 
             {/* Drag & Drop Upload Zone */}
             <label
-              className="flex flex-col items-center justify-center py-8 rounded-lg border-2 border-dashed border-border hover:border-emerald-400 hover:bg-emerald-50/30 cursor-pointer transition-all mb-4"
+              className="flex flex-col items-center justify-center py-8 rounded-lg border-2 border-dashed border-border hover:border-emerald-400 hover:bg-emerald-50/30 cursor-pointer transition-all mt-4 mb-4"
               onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-emerald-400", "bg-emerald-50/30"); }}
               onDragLeave={(e) => { e.currentTarget.classList.remove("border-emerald-400", "bg-emerald-50/30"); }}
               onDrop={(e) => {
@@ -1791,20 +1886,36 @@ export default function TenantDetailPage() {
                       </button>
                     </div>
                     <div className="flex-1 space-y-1.5 min-w-0">
-                      {/* Status-Badge: Bereit vs. Beschreibung fehlt */}
-                      {(() => {
-                        const hasDesc = (img.description?.trim()?.length ?? 0) > 5;
-                        const hasCats = (img.categories?.length ?? 0) > 0;
-                        const ready = hasDesc || hasCats;
-                        return (
-                          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                            ready ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
+                      {/* Badges-Zeile */}
+                      <div className="flex flex-wrap items-center gap-1">
+                        {(() => {
+                          const hasDesc = (img.description?.trim()?.length ?? 0) > 5;
+                          const hasCats = (img.categories?.length ?? 0) > 0;
+                          const ready = hasDesc || hasCats;
+                          return (
+                            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                              ready ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${ready ? "bg-emerald-500" : "bg-amber-400"}`} />
+                              {ready ? "KI kann wählen" : "Beschreibung fehlt"}
+                            </div>
+                          );
+                        })()}
+                        {img.room_type && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                            {img.room_type}
+                          </span>
+                        )}
+                        {img.condition_tag && img.condition_tag !== "neutral" && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            img.condition_tag === "vorher"
+                              ? "bg-orange-50 text-orange-700 border border-orange-200"
+                              : "bg-teal-50 text-teal-700 border border-teal-200"
                           }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${ready ? "bg-emerald-500" : "bg-amber-400"}`} />
-                            {ready ? "KI kann dieses Bild wählen" : "Beschreibung oder Kategorie fehlt"}
-                          </div>
-                        );
-                      })()}
+                            {img.condition_tag}
+                          </span>
+                        )}
+                      </div>
                       <input
                         className="form-input text-sm"
                         value={img.description || ""}
