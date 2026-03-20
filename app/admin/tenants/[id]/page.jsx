@@ -59,6 +59,10 @@ export default function TenantDetailPage() {
   const [exportModal, setExportModal] = useState(null); // { postId, postTitle, upgradeCents, fullPriceCents }
   const pollRef = useRef(null);
   const displayTotalRef = useRef(0);
+  const [googleStatus, setGoogleStatus] = useState(null); // null | { connected, ... }
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [gbpPostLoading, setGbpPostLoading] = useState(null); // postId or null
 
   function showMsg(text, type = "success") {
     setMsg(text);
@@ -67,6 +71,40 @@ export default function TenantDetailPage() {
   }
 
   useEffect(() => { loadTenant(); loadModelLabels(); loadBilling(); loadTenantPosts(); }, [id]);
+
+  // Google Tab: URL-Param nach OAuth-Callback + Status laden
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("tab") === "google") {
+      setTab("google");
+      if (p.get("google_connected")) showMsg("Google erfolgreich verbunden ✓");
+      if (p.get("google_error")) showMsg(`Google Fehler: ${p.get("google_error")}`, "error");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "google" && !googleStatus && id) loadGoogleStatus();
+  }, [tab, id]);
+
+  async function loadGoogleStatus() {
+    setGoogleLoading(true);
+    try {
+      const res = await fetch(`/api/tenants/${id}/google`);
+      setGoogleStatus(await res.json());
+    } catch { setGoogleStatus({ connected: false }); }
+    setGoogleLoading(false);
+  }
+
+  async function googleAction(action, extra = {}) {
+    const res = await fetch(`/api/tenants/${id}/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...extra }),
+    });
+    return res.json();
+  }
 
   // Pipeline-State aus localStorage wiederherstellen (z.B. nach Seiten-Reload während laufender Pipeline)
   useEffect(() => {
@@ -571,6 +609,7 @@ export default function TenantDetailPage() {
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
     { key: "client", label: "Client-Integration" },
+    { key: "google", label: "Google", pill: googleStatus?.connected ? "✓" : null, pillColor: "emerald" },
     { key: "users", label: "Zugänge" },
   ];
 
@@ -1794,6 +1833,244 @@ export default function TenantDetailPage() {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* Tab: Google Integration */}
+      {tab === "google" && (
+        <div className="space-y-6">
+          {googleLoading && (
+            <div className="admin-card flex items-center gap-3 text-muted-foreground">
+              <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              Verbindungsstatus wird geladen…
+            </div>
+          )}
+
+          {!googleLoading && !googleStatus?.connected && (
+            <div className="admin-card text-center space-y-4 py-10">
+              <div className="text-4xl">🔗</div>
+              <h3 className="font-semibold text-lg">Google verbinden</h3>
+              <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                Verbinde Google Drive (Referenzbilder) und Google Unternehmensprofil (automatisch posten) mit diesem Tenant.
+              </p>
+              <a
+                href={`/api/auth/google/start?tenantId=${id}`}
+                className="btn-primary inline-flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Mit Google verbinden
+              </a>
+              {googleStatus?.tokenError && (
+                <p className="text-xs text-destructive">{googleStatus.tokenError}</p>
+              )}
+            </div>
+          )}
+
+          {!googleLoading && googleStatus?.connected && (
+            <>
+              {/* Status Header */}
+              <div className="admin-card flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">G</div>
+                  <div>
+                    <p className="font-semibold text-sm">Google verbunden</p>
+                    <p className="text-xs text-muted-foreground">{googleStatus.scopes?.includes("drive") ? "Drive ✓" : "kein Drive"} · {googleStatus.scopes?.includes("business") ? "Unternehmensprofil ✓" : "kein GBP"}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <a href={`/api/auth/google/start?tenantId=${id}`} className="btn-ghost text-xs">Neu verbinden</a>
+                  <button className="btn-ghost text-xs text-destructive" onClick={async () => {
+                    await googleAction("disconnect");
+                    setGoogleStatus({ connected: false });
+                    showMsg("Google getrennt");
+                  }}>Trennen</button>
+                </div>
+              </div>
+
+              {/* Google Drive */}
+              <div className="admin-card space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold">Google Drive — Referenzbilder</h3>
+                    <p className="text-sm text-muted-foreground">Bilder aus einem Drive-Ordner werden als Referenzbilder für die Pipeline genutzt.</p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <div
+                      className={`relative w-10 h-5 rounded-full transition-colors ${googleStatus.driveEnabled ? "bg-primary" : "bg-muted"}`}
+                      onClick={async () => {
+                        const enabled = !googleStatus.driveEnabled;
+                        await googleAction("toggle_drive", { enabled });
+                        setGoogleStatus(s => ({ ...s, driveEnabled: enabled }));
+                      }}
+                    >
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${googleStatus.driveEnabled ? "left-5" : "left-0.5"}`} />
+                    </div>
+                    <span className="text-sm">{googleStatus.driveEnabled ? "Aktiv" : "Deaktiviert"}</span>
+                  </label>
+                </div>
+
+                {/* Folder Picker */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Ordner auswählen</label>
+                  {googleStatus.driveFolderName && (
+                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg text-sm">
+                      <span>📁</span>
+                      <span className="font-medium">{googleStatus.driveFolderName}</span>
+                      <span className="text-muted-foreground text-xs">({googleStatus.driveFolderId})</span>
+                    </div>
+                  )}
+                  {googleStatus.driveFolders?.length > 0 && (
+                    <select
+                      className="input w-full"
+                      defaultValue={googleStatus.driveFolderId || ""}
+                      onChange={async (e) => {
+                        const folderId = e.target.value;
+                        const folder = googleStatus.driveFolders.find(f => f.id === folderId);
+                        const res = await googleAction("set_folder", { folderId, folderName: folder?.name });
+                        setGoogleStatus(s => ({ ...s, driveFolderId: folderId, driveFolderName: res.folderName || folder?.name }));
+                        showMsg("Ordner gespeichert");
+                      }}
+                    >
+                      <option value="">— Ordner wählen —</option>
+                      {googleStatus.driveFolders.map(f => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  {(!googleStatus.driveFolders || googleStatus.driveFolders.length === 0) && (
+                    <p className="text-xs text-muted-foreground">Keine Ordner gefunden. Drive-Scope fehlt möglicherweise — neu verbinden.</p>
+                  )}
+                </div>
+
+                {/* Sync Button */}
+                {googleStatus.driveFolderId && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      className="btn-secondary text-sm"
+                      disabled={syncLoading}
+                      onClick={async () => {
+                        setSyncLoading(true);
+                        const res = await googleAction("sync_drive");
+                        setSyncLoading(false);
+                        if (res.ok) showMsg(`Sync: ${res.added} neu, ${res.skipped} bereits vorhanden`);
+                        else showMsg(res.error || "Sync fehlgeschlagen", "error");
+                      }}
+                    >
+                      {syncLoading ? "Synchronisiert…" : "Bilder jetzt synchronisieren"}
+                    </button>
+                    <span className="text-xs text-muted-foreground">Bilder werden in Referenzbilder-Pool übertragen</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Google Unternehmensprofil */}
+              <div className="admin-card space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold">Google Unternehmensprofil — Auto-Post</h3>
+                    <p className="text-sm text-muted-foreground">Nach jedem generierten Post automatisch auf Google posten (Bild + Text).</p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <div
+                      className={`relative w-10 h-5 rounded-full transition-colors ${googleStatus.gbpEnabled ? "bg-primary" : "bg-muted"}`}
+                      onClick={async () => {
+                        const enabled = !googleStatus.gbpEnabled;
+                        await googleAction("toggle_gbp", { enabled });
+                        setGoogleStatus(s => ({ ...s, gbpEnabled: enabled }));
+                      }}
+                    >
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${googleStatus.gbpEnabled ? "left-5" : "left-0.5"}`} />
+                    </div>
+                    <span className="text-sm">{googleStatus.gbpEnabled ? "Aktiv" : "Deaktiviert"}</span>
+                  </label>
+                </div>
+
+                {/* Account + Location Picker */}
+                {googleStatus.gbpAccounts?.length > 0 ? (
+                  <div className="space-y-3">
+                    {googleStatus.gbpAccounts.map(acc => (
+                      <div key={acc.name} className="border rounded-lg p-3 space-y-2">
+                        <p className="font-medium text-sm">{acc.accountName || acc.name}</p>
+                        {acc.locations?.length > 0 ? (
+                          <div className="grid grid-cols-1 gap-1">
+                            {acc.locations.map(loc => {
+                              const accountId = acc.name.split("/").pop();
+                              const locationId = loc.name.split("/").pop();
+                              const isActive = googleStatus.gbpAccountId === accountId && googleStatus.gbpLocationId === locationId;
+                              return (
+                                <button
+                                  key={loc.name}
+                                  className={`text-left text-sm px-3 py-2 rounded-md transition-colors ${isActive ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"}`}
+                                  onClick={async () => {
+                                    await googleAction("set_gbp", { accountId, locationId });
+                                    setGoogleStatus(s => ({ ...s, gbpAccountId: accountId, gbpLocationId: locationId }));
+                                    showMsg("Standort gespeichert");
+                                  }}
+                                >
+                                  {loc.title || locationId} {isActive && "✓"}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Keine Standorte gefunden</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {googleStatus.tokenError
+                      ? "Token-Fehler — bitte neu verbinden"
+                      : "Keine GBP-Accounts gefunden. Scope fehlt oder kein Konto verknüpft."}
+                  </p>
+                )}
+
+                {/* Aktueller Stand */}
+                {googleStatus.gbpAccountId && googleStatus.gbpLocationId && (
+                  <div className="flex items-center gap-2 text-xs bg-emerald-50 text-emerald-700 px-3 py-2 rounded-lg">
+                    <span>✓</span>
+                    <span>Aktiver Standort: <strong>{googleStatus.gbpLocationId}</strong></span>
+                  </div>
+                )}
+              </div>
+
+              {/* Manuell posten */}
+              {googleStatus.gbpAccountId && googleStatus.gbpLocationId && tenantPosts?.length > 0 && (
+                <div className="admin-card space-y-3">
+                  <h3 className="font-semibold">Manuell auf Google posten</h3>
+                  <p className="text-sm text-muted-foreground">Einen vorhandenen Post jetzt auf Google Unternehmensprofil veröffentlichen.</p>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {tenantPosts.filter(p => p.status !== "failed").map(p => (
+                      <div key={p.id} className="flex items-center justify-between gap-3 p-2 border rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{p.blog_title}</p>
+                          <p className="text-xs text-muted-foreground">{p.language} · {p.status}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {p.gbp_post_id && <span className="text-xs text-emerald-600 font-medium">Gepostet ✓</span>}
+                          <button
+                            className="btn-secondary text-xs py-1"
+                            disabled={gbpPostLoading === p.id}
+                            onClick={async () => {
+                              setGbpPostLoading(p.id);
+                              const res = await googleAction("post_to_gbp", { postId: p.id });
+                              setGbpPostLoading(null);
+                              if (res.ok) showMsg("Erfolgreich auf Google gepostet ✓");
+                              else showMsg(res.error || "Fehler beim Posten", "error");
+                              loadTenantPosts();
+                            }}
+                          >
+                            {gbpPostLoading === p.id ? "Postet…" : p.gbp_post_id ? "Erneut posten" : "Jetzt posten"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
