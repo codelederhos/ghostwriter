@@ -2168,10 +2168,10 @@ export default function TenantDetailPage() {
               <label className="form-label mb-2 block">Post-Länge</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
-                  { key: "short",    label: "Kurz",        sub: "300–500 Wörter" },
-                  { key: "medium",   label: "Standard",    sub: "500–800 Wörter" },
-                  { key: "long",     label: "Lang",        sub: "800–1200 Wörter" },
-                  { key: "detailed", label: "Ausführlich", sub: "1200–1800 Wörter" },
+                  { key: "short",    label: "Kurz",        sub: "500–800 Wörter" },
+                  { key: "medium",   label: "Standard",    sub: "800–1200 Wörter" },
+                  { key: "long",     label: "Lang",        sub: "1200–1800 Wörter" },
+                  { key: "detailed", label: "Ausführlich", sub: "1800–2500 Wörter" },
                 ].map(({ key, label, sub }) => {
                   const active = (settings.post_length || "medium") === key;
                   return (
