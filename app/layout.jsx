@@ -13,6 +13,9 @@ export default function RootLayout({ children }) {
     <html lang="de">
       <body className="bg-background text-foreground antialiased">
         {children}
+        <footer style={{ textAlign: "center", padding: "1rem", fontSize: "0.75rem", color: "#9ca3af" }}>
+          <a href="/datenschutz" style={{ color: "inherit" }}>Datenschutz</a>
+        </footer>
       </body>
     </html>
   );
