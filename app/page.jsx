@@ -16,7 +16,7 @@ export default function Home() {
             Login
           </Link>
         </div>
-        <p className="text-white/30 text-xs mt-12">by Code Lederhos</p>
+        <p className="text-white/30 text-xs mt-12">by Code Lederhos &nbsp;·&nbsp; <a href="/datenschutz" className="underline hover:text-white/50">Datenschutz</a></p>
       </div>
     </div>
   );
