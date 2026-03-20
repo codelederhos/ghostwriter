@@ -10,6 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "bcryptjs": "^2.4.3",
     "jsonrepair": "^3.13.3",
     "lucide-react": "^0.344.0",
