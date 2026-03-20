@@ -1689,8 +1689,8 @@ export default function TenantDetailPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground w-10"></th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Titel</th>
+                    <th className="w-[88px] p-0"></th>
+                    <th className="text-left px-3 py-3 font-medium text-muted-foreground">Titel</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Kategorie</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Sprache</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Wörter</th>
@@ -1706,11 +1706,12 @@ export default function TenantDetailPage() {
                     <tr
                       key={p.id}
                       onClick={() => loadPostPreview(p.id)}
-                      className={`border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}
+                      className="border-b border-border/40 hover:bg-muted/30 cursor-pointer transition-colors group/row"
                     >
-                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      {/* Thumbnail — fade-blend nach rechts via mask-image */}
+                      <td className="p-0 w-[88px] overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div
-                          className="relative w-8 h-8 group"
+                          className="relative h-[56px] w-[88px] cursor-pointer group/img"
                           onClick={(e) => {
                             e.stopPropagation();
                             const regenPrice = billingData?.pricing?.image_regen_price_cents ?? 100;
@@ -1718,25 +1719,30 @@ export default function TenantDetailPage() {
                           }}
                         >
                           {p.image_url ? (
-                            <img src={p.image_url} alt="" className="w-8 h-8 rounded object-cover" />
+                            <>
+                              <img
+                                src={p.image_url}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover"
+                                style={{ WebkitMaskImage: "linear-gradient(to right, black 45%, transparent 100%)", maskImage: "linear-gradient(to right, black 45%, transparent 100%)" }}
+                              />
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center rounded-sm" title="Bild neu generieren"
+                                style={{ WebkitMaskImage: "linear-gradient(to right, black 45%, transparent 100%)", maskImage: "linear-gradient(to right, black 45%, transparent 100%)" }}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" />
+                                </svg>
+                              </div>
+                            </>
                           ) : (
-                            <div className="w-8 h-8 rounded bg-red-50 border border-red-200 flex items-center justify-center" title="Kein Bild — klicken zum Generieren">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-red-400">
-                                <rect x="3" y="5" width="18" height="14" rx="2" />
-                                <circle cx="12" cy="12" r="3" />
-                                <path d="M7 5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1" />
+                            <div className="absolute inset-0 bg-red-50 flex items-center justify-center" title="Kein Bild — klicken zum Generieren">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-red-300">
+                                <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="12" cy="12" r="3" />
                               </svg>
                             </div>
                           )}
-                          <div className="absolute inset-0 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" title="Bild neu generieren">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                              <path d="M21 3v5h-5" />
-                            </svg>
-                          </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <span className="font-medium text-foreground line-clamp-1">{p.blog_title}</span>
                         {p.is_test && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600">Test</span>}
                       </td>
