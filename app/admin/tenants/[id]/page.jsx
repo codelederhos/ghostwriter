@@ -70,7 +70,7 @@ export default function TenantDetailPage() {
     setTimeout(() => setMsg(""), type === "error" ? 8000 : 4000);
   }
 
-  useEffect(() => { loadTenant(); loadModelLabels(); loadBilling(); loadTenantPosts(); }, [id]);
+  useEffect(() => { loadTenant(); loadModelLabels(); loadBilling(); loadTenantPosts(); loadRefImages(); loadGoogleStatus(); }, [id]);
 
   // Google Tab: URL-Param nach OAuth-Callback + Status laden
   useEffect(() => {
@@ -84,9 +84,32 @@ export default function TenantDetailPage() {
     }
   }, []);
 
+  const syncPollRef = useRef(null);
+
+  // Sync-Polling starten wenn running
   useEffect(() => {
-    if ((tab === "google" || tab === "images") && !googleStatus && id) loadGoogleStatus();
-  }, [tab, id]);
+    if (googleStatus?.syncStatus === "running") {
+      if (syncPollRef.current) return; // bereits läuft
+      syncPollRef.current = setInterval(async () => {
+        const res = await fetch(`/api/tenants/${id}/google`);
+        const data = await res.json();
+        setGoogleStatus(data);
+        if (data.syncStatus !== "running") {
+          clearInterval(syncPollRef.current);
+          syncPollRef.current = null;
+          loadRefImages(); // Bilder-Liste aktualisieren
+        }
+      }, 1200);
+    } else {
+      if (syncPollRef.current) {
+        clearInterval(syncPollRef.current);
+        syncPollRef.current = null;
+      }
+    }
+    return () => {
+      if (syncPollRef.current) { clearInterval(syncPollRef.current); syncPollRef.current = null; }
+    };
+  }, [googleStatus?.syncStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadGoogleStatus() {
     setGoogleLoading(true);
@@ -604,7 +627,7 @@ export default function TenantDetailPage() {
     { key: "billing", label: "Kosten", pill: openEuro, pillColor: "amber" },
     { key: "ctas", label: "CTAs" },
     { key: "topics", label: "Themen", pill: topicsCombos > 0 ? `${topicsCombos}` : null, pillColor: "emerald" },
-    { key: "images", label: "Bilder", pill: googleStatus?.driveFolderId ? "Drive ✓" : null, pillColor: "emerald" },
+    { key: "images", label: "Bilder", pill: refImages.post.length > 0 ? `${refImages.post.length}` : googleStatus?.syncStatus === "running" ? "⟳" : null, pillColor: "emerald" },
     { key: "posts", label: "Posts", pill: tenantPosts !== null ? `${tenantPosts.length}` : null, pillColor: "default" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
@@ -1486,86 +1509,164 @@ export default function TenantDetailPage() {
         <div className="space-y-6">
 
           {/* Google Drive Sync */}
-          <div className="admin-card space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold">Google Drive — Referenzbilder</h3>
-                <p className="text-sm text-muted-foreground">Drive-Ordner verbinden → Bilder werden täglich automatisch synchronisiert.</p>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <div
-                  className={`relative w-10 h-5 rounded-full transition-colors ${googleStatus?.driveEnabled ? "bg-emerald-500" : "bg-muted"}`}
-                  onClick={async () => {
-                    const enabled = !googleStatus?.driveEnabled;
-                    await googleAction("toggle_drive", { enabled });
-                    setGoogleStatus(s => ({ ...s, driveEnabled: enabled }));
-                  }}
-                >
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${googleStatus?.driveEnabled ? "left-5" : "left-0.5"}`} />
+          {(() => {
+            const isRunning = googleStatus?.syncStatus === "running";
+            const isDone = googleStatus?.syncStatus === "done";
+            const isActive = googleStatus?.driveEnabled;
+            const syncTotal = googleStatus?.syncTotal || 0;
+            const syncDone = googleStatus?.syncDone || 0;
+            const syncPct = syncTotal > 0 ? Math.round((syncDone / syncTotal) * 100) : 0;
+
+            return (
+              <div className={`admin-card space-y-4 transition-all duration-300 ${isActive ? "border-emerald-300 bg-emerald-50/30" : ""}`}>
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">Google Drive — Referenzbilder</h3>
+                      {isRunning && (
+                        <span className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-medium">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          Sync läuft…
+                        </span>
+                      )}
+                      {isDone && googleStatus?.syncAdded > 0 && (
+                        <span className="text-xs text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          +{googleStatus.syncAdded} neu ✓
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {isRunning
+                        ? `${syncDone} von ${syncTotal} Bilder konvertiert…`
+                        : "Drive-Ordner verbinden → täglich automatisch synchronisiert."}
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                    <div
+                      className={`relative w-10 h-5 rounded-full transition-colors ${isActive ? "bg-emerald-500" : "bg-muted"}`}
+                      onClick={async () => {
+                        const enabled = !googleStatus?.driveEnabled;
+                        await googleAction("toggle_drive", { enabled });
+                        setGoogleStatus(s => ({ ...s, driveEnabled: enabled }));
+                      }}
+                    >
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${isActive ? "left-5" : "left-0.5"}`} />
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: isActive ? "#16a34a" : undefined }}>
+                      {isActive ? "Aktiv" : "Deaktiviert"}
+                    </span>
+                  </label>
                 </div>
-                <span className="text-sm">{googleStatus?.driveEnabled ? "Aktiv" : "Deaktiviert"}</span>
-              </label>
-            </div>
 
-            {/* SA-Email Anleitung */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1">
-              <p className="text-xs font-medium text-blue-800">Drive-Ordner freigeben:</p>
-              <p className="text-xs text-blue-700">Rechtsklick auf Ordner → Freigeben → diese E-Mail als Betrachter:</p>
-              <div className="flex items-center gap-2 mt-1">
-                <code className="text-xs bg-white border border-blue-200 rounded px-2 py-1 flex-1 break-all">
-                  {googleStatus?.serviceAccountEmail || "ghostwriter-drive@ghostwriter-490820.iam.gserviceaccount.com"}
-                </code>
-                <button
-                  className="btn-ghost text-xs shrink-0"
-                  onClick={() => {
-                    navigator.clipboard.writeText(googleStatus?.serviceAccountEmail || "ghostwriter-drive@ghostwriter-490820.iam.gserviceaccount.com");
-                    showMsg("E-Mail kopiert ✓");
-                  }}
-                >Kopieren</button>
-              </div>
-            </div>
-
-            {/* Ordner-ID + Sync */}
-            <div className="flex gap-2 items-end">
-              <div className="flex-1 space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Ordner-ID (aus Drive-URL)</label>
-                {googleStatus?.driveFolderName && (
-                  <div className="flex items-center gap-1.5 text-xs text-emerald-700">
-                    <span>📁</span><span className="font-medium">{googleStatus.driveFolderName}</span>
+                {/* Fortschrittsbalken während Sync */}
+                {isRunning && syncTotal > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all duration-700"
+                        style={{ width: `${syncPct}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground text-right">{syncPct}% · {syncDone}/{syncTotal}</p>
                   </div>
                 )}
-                <input
-                  className="input w-full text-sm font-mono"
-                  placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74"
-                  defaultValue={googleStatus?.driveFolderId || ""}
-                  onBlur={async (e) => {
-                    const folderId = e.target.value.trim();
-                    if (!folderId || folderId === googleStatus?.driveFolderId) return;
-                    const res = await googleAction("set_folder", { folderId });
-                    setGoogleStatus(s => ({ ...s, driveFolderId: folderId, driveFolderName: res.folderName }));
-                    if (res.folderName) showMsg(`Ordner "${res.folderName}" gespeichert ✓`);
-                    else showMsg("Ordner-ID gespeichert — Zugriff prüfen (SA-Email geteilt?)", "error");
-                  }}
-                />
+
+                {/* Skeleton-Grid während Sync */}
+                {isRunning && syncTotal > 0 && (
+                  <div className="grid grid-cols-5 gap-2">
+                    {Array.from({ length: Math.min(syncTotal, 20) }).map((_, i) => {
+                      const loaded = i < syncDone;
+                      const recentImages = refImages.post.slice(-syncDone);
+                      const img = loaded ? recentImages[i] : null;
+                      return (
+                        <div
+                          key={i}
+                          className={`aspect-square rounded-lg overflow-hidden transition-all duration-500 ${loaded ? "opacity-100 scale-100" : "opacity-60 scale-95"}`}
+                        >
+                          {img ? (
+                            <img
+                              src={img.thumb_url || img.image_url}
+                              className="w-full h-full object-cover"
+                              alt=""
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-muted animate-pulse rounded-lg" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* SA-Email Anleitung */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1">
+                  <p className="text-xs font-medium text-blue-800">Drive-Ordner freigeben:</p>
+                  <p className="text-xs text-blue-700">Rechtsklick auf Ordner → Freigeben → diese E-Mail als Betrachter:</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="text-xs bg-white border border-blue-200 rounded px-2 py-1 flex-1 break-all">
+                      {googleStatus?.serviceAccountEmail || "ghostwriter-drive@ghostwriter-490820.iam.gserviceaccount.com"}
+                    </code>
+                    <button
+                      className="btn-ghost text-xs shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(googleStatus?.serviceAccountEmail || "ghostwriter-drive@ghostwriter-490820.iam.gserviceaccount.com");
+                        showMsg("E-Mail kopiert ✓");
+                      }}
+                    >Kopieren</button>
+                  </div>
+                </div>
+
+                {/* Ordner-ID + Sync-Button */}
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Ordner-ID (aus Drive-URL)</label>
+                    {googleStatus?.driveFolderName && (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
+                        <span>📁</span><span>{googleStatus.driveFolderName}</span>
+                      </div>
+                    )}
+                    <input
+                      className="input w-full text-sm font-mono"
+                      placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74"
+                      defaultValue={googleStatus?.driveFolderId || ""}
+                      disabled={isRunning}
+                      onBlur={async (e) => {
+                        const folderId = e.target.value.trim();
+                        if (!folderId || folderId === googleStatus?.driveFolderId) return;
+                        const res = await googleAction("set_folder", { folderId });
+                        setGoogleStatus(s => ({ ...s, driveFolderId: folderId, driveFolderName: res.folderName }));
+                        if (res.folderName) showMsg(`Ordner "${res.folderName}" gespeichert ✓`);
+                        else showMsg("Zugriff prüfen — SA-Email geteilt?", "error");
+                      }}
+                    />
+                  </div>
+                  <button
+                    className={`text-sm shrink-0 px-4 py-2 rounded-lg font-medium transition-all ${isRunning ? "bg-emerald-100 text-emerald-700 cursor-not-allowed" : "btn-secondary"}`}
+                    disabled={isRunning || !googleStatus?.driveFolderId}
+                    onClick={async () => {
+                      const res = await googleAction("sync_drive");
+                      if (res.ok) {
+                        setGoogleStatus(s => ({ ...s, syncStatus: "running", syncDone: 0, syncTotal: 0, syncAdded: 0 }));
+                      } else {
+                        showMsg(res.error || "Sync fehlgeschlagen", "error");
+                      }
+                    }}
+                  >
+                    {isRunning ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3.5 h-3.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                        {syncDone}/{syncTotal || "…"}
+                      </span>
+                    ) : "Sync starten"}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Bilder werden als WebP konvertiert · täglich 03:00 Uhr automatisch · Sub-Ordner werden durchsucht
+                </p>
               </div>
-              <button
-                className="btn-secondary text-sm shrink-0"
-                disabled={syncLoading || !googleStatus?.driveFolderId}
-                onClick={async () => {
-                  setSyncLoading(true);
-                  const res = await googleAction("sync_drive");
-                  setSyncLoading(false);
-                  if (res.ok) {
-                    showMsg(`Sync: ${res.added} neu, ${res.skipped} bereits vorhanden`);
-                    loadRefImages();
-                  } else showMsg(res.error || "Sync fehlgeschlagen", "error");
-                }}
-              >
-                {syncLoading ? "Synct…" : "Jetzt sync"}
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">Neue Bilder werden täglich um 03:00 Uhr automatisch synchronisiert.</p>
-          </div>
+            );
+          })()}
 
           {/* Persona */}
           <div className="admin-card">

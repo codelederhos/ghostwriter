@@ -1,17 +1,14 @@
 /**
  * Google Integration API für einen Tenant
- * GET  → Verbindungsstatus (GBP OAuth) + Drive-Status
- * POST → set_folder | sync_drive | set_gbp | disconnect | toggle_drive | toggle_gbp | post_to_gbp
- *
- * Drive: Service Account (kein OAuth nötig, SA-Email muss Zugriff auf Ordner haben)
- * GBP:   OAuth 2.0 (User-Account, für Posting nötig)
+ * Drive: Service Account (kein OAuth nötig)
+ * GBP:   OAuth 2.0 (User-Account)
  */
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { decrypt, encrypt } from "@/lib/crypto";
+import { decrypt } from "@/lib/crypto";
 import { getValidGoogleToken, fetchGbpAccountsAndLocations } from "@/lib/google/oauth";
-import { listDriveImages, downloadDriveFile, getDriveFolderName, SERVICE_ACCOUNT_EMAIL } from "@/lib/google/drive";
+import { listDriveImages, downloadAndConvertDriveFile, getDriveFolderName, SERVICE_ACCOUNT_EMAIL } from "@/lib/google/drive";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +18,58 @@ function decryptSettings(s) {
     gbp_oauth_token: s.gbp_oauth_token ? decrypt(s.gbp_oauth_token) : null,
     gbp_refresh_token: s.gbp_refresh_token ? decrypt(s.gbp_refresh_token) : null,
   };
+}
+
+// ─── Hintergrund-Sync (läuft weiter auch wenn Client trennt) ─────────────────
+async function runDriveSync(tenantId, folderId) {
+  try {
+    const files = await listDriveImages(folderId);
+
+    await query(
+      `UPDATE tenant_settings SET drive_sync_total = $2, drive_sync_done = 0, drive_sync_added = 0 WHERE tenant_id = $1`,
+      [tenantId, files.length]
+    );
+
+    let added = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const { rows: existing } = await query(
+          "SELECT id FROM tenant_reference_images WHERE tenant_id = $1 AND source_id = $2",
+          [tenantId, file.id]
+        );
+        if (existing.length === 0) {
+          const { url, thumbUrl } = await downloadAndConvertDriveFile(file.id, tenantId);
+          const publicUrl = `${process.env.NEXT_PUBLIC_BASE_URL || ""}${url}`;
+          const publicThumb = `${process.env.NEXT_PUBLIC_BASE_URL || ""}${thumbUrl}`;
+          await query(
+            `INSERT INTO tenant_reference_images (tenant_id, type, image_url, thumb_url, description, source, source_id)
+             VALUES ($1, 'post', $2, $3, $4, 'drive', $5)`,
+            [tenantId, publicUrl, publicThumb, file.name, file.id]
+          );
+          added++;
+        }
+      } catch (err) {
+        console.error(`[Drive Sync] ${file.id}:`, err.message);
+      }
+      await query(
+        `UPDATE tenant_settings SET drive_sync_done = $2, drive_sync_added = $3 WHERE tenant_id = $1`,
+        [tenantId, i + 1, added]
+      );
+    }
+
+    await query(
+      `UPDATE tenant_settings SET drive_sync_status = 'done', drive_sync_done = $2, drive_sync_added = $3 WHERE tenant_id = $1`,
+      [tenantId, files.length, added]
+    );
+    console.log(`[Drive Sync] ${tenantId}: ${added} neue Bilder von ${files.length} gesamt`);
+  } catch (err) {
+    console.error(`[Drive Sync] Fehler für ${tenantId}:`, err.message);
+    await query(
+      `UPDATE tenant_settings SET drive_sync_status = 'error' WHERE tenant_id = $1`,
+      [tenantId]
+    );
+  }
 }
 
 // ─── GET: Status ──────────────────────────────────────────────────────────────
@@ -36,23 +85,23 @@ export async function GET(req, { params }) {
   const gbpConnected = !!(settings.gbp_oauth_token && settings.gbp_refresh_token);
 
   const result = {
-    // Drive (Service Account — immer verfügbar)
     driveAvailable: !!process.env.GOOGLE_SERVICE_ACCOUNT,
     serviceAccountEmail: SERVICE_ACCOUNT_EMAIL,
     driveEnabled: !!settings.drive_enabled,
     driveFolderId: settings.drive_folder_id || null,
     driveFolderName: settings.drive_folder_name || null,
-
-    // GBP (OAuth)
+    syncStatus: settings.drive_sync_status || "idle",
+    syncTotal: settings.drive_sync_total || 0,
+    syncDone: settings.drive_sync_done || 0,
+    syncAdded: settings.drive_sync_added || 0,
+    syncStartedAt: settings.drive_sync_started_at || null,
     gbpConnected,
     gbpEnabled: !!settings.gbp_enabled,
     gbpAccountId: settings.gbp_account_id || null,
     gbpLocationId: settings.gbp_location_id || null,
     scopes: settings.google_scopes || "",
-    tokenExpiry: settings.google_token_expiry,
   };
 
-  // GBP Accounts laden wenn verbunden
   if (gbpConnected) {
     try {
       const token = await getValidGoogleToken(id, settings);
@@ -80,15 +129,12 @@ export async function POST(req, { params }) {
 
   switch (action) {
 
-    // ── Drive-Ordner setzen (SA holt den Namen) ─────────────────────────────
     case "set_folder": {
       const { folderId } = body;
       let folderName = body.folderName || null;
-
       if (!folderName && folderId) {
         try { folderName = await getDriveFolderName(folderId); } catch { /* non-fatal */ }
       }
-
       await query(
         `UPDATE tenant_settings SET drive_folder_id = $2, drive_folder_name = $3, updated_at = NOW() WHERE tenant_id = $1`,
         [id, folderId || null, folderName]
@@ -96,42 +142,24 @@ export async function POST(req, { params }) {
       return NextResponse.json({ ok: true, folderName });
     }
 
-    // ── Drive-Bilder synchronisieren ────────────────────────────────────────
     case "sync_drive": {
+      if (settings.drive_sync_status === "running") {
+        return NextResponse.json({ ok: false, error: "Sync läuft bereits" });
+      }
       const folderId = settings.drive_folder_id;
       if (!folderId) return NextResponse.json({ error: "Kein Drive-Ordner gesetzt" }, { status: 400 });
 
-      const files = await listDriveImages(folderId);
-      let added = 0, skipped = 0;
+      await query(
+        `UPDATE tenant_settings SET drive_sync_status = 'running', drive_sync_started_at = $2, drive_sync_total = 0, drive_sync_done = 0, drive_sync_added = 0 WHERE tenant_id = $1`,
+        [id, Date.now()]
+      );
 
-      for (const file of files) {
-        const { rows: existing } = await query(
-          "SELECT id FROM tenant_reference_images WHERE tenant_id = $1 AND source_id = $2",
-          [id, file.id]
-        );
-        if (existing.length > 0) { skipped++; continue; }
+      // Fire & forget — läuft weiter auch wenn Client die Verbindung trennt
+      runDriveSync(id, folderId).catch(console.error);
 
-        let localUrl;
-        try {
-          localUrl = await downloadDriveFile(file.id, id, file.mimeType);
-        } catch (err) {
-          console.error(`[Drive Sync] Download fehlgeschlagen ${file.id}:`, err.message);
-          continue;
-        }
-
-        const publicUrl = `${process.env.NEXT_PUBLIC_BASE_URL || ""}${localUrl}`;
-        await query(
-          `INSERT INTO tenant_reference_images (tenant_id, type, image_url, thumb_url, description, source, source_id)
-           VALUES ($1, 'post', $2, $3, $4, 'drive', $5)`,
-          [id, publicUrl, file.thumbnailLink || publicUrl, file.name, file.id]
-        );
-        added++;
-      }
-
-      return NextResponse.json({ ok: true, added, skipped, total: files.length });
+      return NextResponse.json({ ok: true, started: true });
     }
 
-    // ── GBP Account + Standort setzen ──────────────────────────────────────
     case "set_gbp": {
       const { accountId, locationId } = body;
       await query(
@@ -141,7 +169,6 @@ export async function POST(req, { params }) {
       return NextResponse.json({ ok: true });
     }
 
-    // ── Toggles ─────────────────────────────────────────────────────────────
     case "toggle_drive": {
       await query(
         `UPDATE tenant_settings SET drive_enabled = $2, updated_at = NOW() WHERE tenant_id = $1`,
@@ -158,7 +185,6 @@ export async function POST(req, { params }) {
       return NextResponse.json({ ok: true });
     }
 
-    // ── Manuell auf GBP posten ──────────────────────────────────────────────
     case "post_to_gbp": {
       const { postId } = body;
       const { rows: [post] } = await query(
@@ -190,8 +216,7 @@ export async function POST(req, { params }) {
       );
 
       if (!gbpRes.ok) {
-        const err = await gbpRes.text();
-        return NextResponse.json({ error: `GBP ${gbpRes.status}: ${err}` }, { status: 502 });
+        return NextResponse.json({ error: `GBP ${gbpRes.status}: ${await gbpRes.text()}` }, { status: 502 });
       }
 
       const gbpData = await gbpRes.json();
@@ -199,13 +224,10 @@ export async function POST(req, { params }) {
       return NextResponse.json({ ok: true, gbpPostId: gbpData.name });
     }
 
-    // ── GBP-Verbindung trennen ───────────────────────────────────────────────
     case "disconnect": {
       await query(
-        `UPDATE tenant_settings SET
-           gbp_oauth_token = NULL, gbp_refresh_token = NULL,
-           google_token_expiry = NULL, google_scopes = NULL,
-           gbp_enabled = false, updated_at = NOW()
+        `UPDATE tenant_settings SET gbp_oauth_token = NULL, gbp_refresh_token = NULL,
+         google_token_expiry = NULL, google_scopes = NULL, gbp_enabled = false, updated_at = NOW()
          WHERE tenant_id = $1`,
         [id]
       );
