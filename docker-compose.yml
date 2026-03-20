@@ -34,6 +34,9 @@ services:
       QUICKCHART_URL: ${QUICKCHART_URL:-http://192.168.32.4:3400}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GOOGLE_SERVICE_ACCOUNT: /app/secrets/service-account.json
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${GOOGLE_SERVICE_ACCOUNT_EMAIL:-ghostwriter-drive@ghostwriter-490820.iam.gserviceaccount.com}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -41,6 +44,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
     volumes:
       - uploads:/app/public/uploads
+      - /opt/ghostwriter/secrets:/app/secrets:ro
     ports:
       - "127.0.0.1:3200:3200"
 
