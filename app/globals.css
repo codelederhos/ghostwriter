@@ -635,3 +635,8 @@ body {
 @keyframes statLineDraw { to { stroke-dashoffset: 0; } }
 @keyframes barRise { to { height: var(--bar-h); } }
 @keyframes lineDraw { to { stroke-dashoffset: 0; } }
+
+/* Blog: Chart.js Container */
+.gw-chart { margin: 2rem 0; border-radius: 12px; border: 1px solid hsl(var(--border)); padding: 1.5rem 1.25rem; background: hsl(var(--muted)); }
+.gw-chart canvas { display: block; max-height: 420px; }
+.gw-chart script { display: none; }
