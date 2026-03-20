@@ -4,7 +4,7 @@ export const metadata = {
   title: "Ghostwriter — Autonomes SEO-Content-System",
   description: "Multi-Tenant SaaS für automatische Blog-Artikel und Google Business Profile Posts.",
   verification: {
-    google: "B5AljjC8cvQQwYPIPR169JrsL2OuMFZIWvrb9JDphLI",
+    google: "f3ZRghlIxgAY2qMwCHeuKPAqwkm_jiyja-HfFsYJn9s",
   },
 };
 
