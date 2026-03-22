@@ -27,6 +27,9 @@ export default function TenantDetailPage() {
   const [tab, setTab] = useState("profile");
   const [users, setUsers] = useState([]);
   const [newUser, setNewUser] = useState({ email: "", name: "", password: "" });
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [editUserData, setEditUserData] = useState({ email: "", name: "", password: "" });
+  const [hoveredDeleteUserId, setHoveredDeleteUserId] = useState(null);
   const [expandedTopic, setExpandedTopic] = useState(null);
   const [dragItem, setDragItem] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
@@ -632,6 +635,24 @@ export default function TenantDetailPage() {
     });
     showMsg("Zugang gelöscht");
     loadUsers();
+    setSaving(false);
+  }
+
+  async function updateCustomerUser(userId) {
+    setSaving(true);
+    const res = await fetch("/api/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update_user", userId, ...editUserData }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showMsg("Zugang aktualisiert");
+      setEditingUserId(null);
+      loadUsers();
+    } else {
+      showMsg(data.error || "Fehler beim Speichern", "error");
+    }
     setSaving(false);
   }
 
@@ -2831,17 +2852,110 @@ export default function TenantDetailPage() {
             <h3 className="font-semibold mb-3">Bestehende Zugänge</h3>
             {users.length > 0 ? (
               <div className="space-y-2">
-                {users.map((u) => (
-                  <div key={u.id} className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted/30">
-                    <div>
-                      <p className="font-medium text-sm">{u.email}</p>
-                      <p className="text-xs text-muted-foreground">{u.name || "Kein Name"} &middot; Erstellt: {new Date(u.created_at).toLocaleDateString("de")}</p>
+                {users.map((u) => {
+                  const isEditing = editingUserId === u.id;
+                  const isDangerHover = hoveredDeleteUserId === u.id;
+                  return (
+                    <div
+                      key={u.id}
+                      className={`rounded-xl border transition-all duration-200 overflow-hidden
+                        ${isDangerHover && !isEditing
+                          ? "border-red-300 bg-red-50/60"
+                          : isEditing
+                          ? "border-indigo-300 bg-indigo-50/30"
+                          : "border-border bg-muted/30 hover:border-border/80"
+                        }`}
+                    >
+                      {/* Header Row */}
+                      <div className="flex items-center justify-between py-3 px-4">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{u.email}</p>
+                          <p className="text-xs text-muted-foreground">{u.name || "Kein Name"} &middot; Erstellt: {new Date(u.created_at).toLocaleDateString("de")}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-3">
+                          <button
+                            onClick={() => {
+                              if (isEditing) { setEditingUserId(null); return; }
+                              setEditingUserId(u.id);
+                              setEditUserData({ email: u.email, name: u.name || "", password: "" });
+                            }}
+                            className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all border
+                              ${isEditing
+                                ? "bg-indigo-100 border-indigo-300 text-indigo-700"
+                                : "border-transparent text-muted-foreground hover:bg-muted hover:border-border"
+                              }`}
+                            title={isEditing ? "Abbrechen" : "Bearbeiten"}
+                          >
+                            {isEditing ? <X size={13} /> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+                          </button>
+                          <div
+                            onMouseEnter={() => setHoveredDeleteUserId(u.id)}
+                            onMouseLeave={() => setHoveredDeleteUserId(null)}
+                          >
+                            <button
+                              onClick={() => deleteCustomerUser(u.id)}
+                              className="h-7 w-7 rounded-lg flex items-center justify-center transition-all border border-transparent text-red-500 hover:bg-red-100 hover:border-red-200"
+                              title="Zugang löschen"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Edit Panel */}
+                      {isEditing && (
+                        <div className="px-4 pb-4 border-t border-indigo-200/60 pt-3 space-y-3">
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-[11px] text-muted-foreground font-medium mb-1 block">E-Mail</label>
+                              <input
+                                className="w-full text-xs rounded-lg border border-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400 bg-white transition-all"
+                                value={editUserData.email}
+                                onChange={e => setEditUserData(d => ({ ...d, email: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Name</label>
+                              <input
+                                className="w-full text-xs rounded-lg border border-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400 bg-white transition-all"
+                                value={editUserData.name}
+                                onChange={e => setEditUserData(d => ({ ...d, name: e.target.value }))}
+                                placeholder="Max Mustermann"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Neues Passwort <span className="text-muted-foreground/50">(optional)</span></label>
+                              <input
+                                type="password"
+                                className="w-full text-xs rounded-lg border border-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400 bg-white transition-all"
+                                value={editUserData.password}
+                                onChange={e => setEditUserData(d => ({ ...d, password: e.target.value }))}
+                                placeholder="Leer lassen = unverändern"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateCustomerUser(u.id)}
+                              disabled={saving || !editUserData.email}
+                              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-1.5"
+                            >
+                              <Save size={11} />
+                              Speichern
+                            </button>
+                            <button
+                              onClick={() => setEditingUserId(null)}
+                              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              Abbrechen
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <button onClick={() => deleteCustomerUser(u.id)} className="dw-icon-btn-destructive">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Noch keine Kundenzugänge angelegt.</p>

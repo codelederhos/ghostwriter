@@ -43,6 +43,7 @@ export async function POST(req) {
     case "update_topics": return updateTopics(body);
     case "list_users": return listUsers(body);
     case "create_user": return createUser(body);
+    case "update_user": return updateUser(body);
     case "delete_user": return deleteUser(body);
     default:
       return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
@@ -193,6 +194,22 @@ async function createUser({ tenantId, email, name, password }) {
     [email, name || null, hash, tenantId]
   );
   return NextResponse.json({ ok: true, user });
+}
+
+async function updateUser({ userId, email, name, password }) {
+  if (!userId) return NextResponse.json({ error: "userId fehlt" }, { status: 400 });
+  const sets = [];
+  const vals = [userId];
+  let i = 2;
+  if (email) { sets.push(`email = $${i++}`); vals.push(email); }
+  if (name !== undefined) { sets.push(`name = $${i++}`); vals.push(name || null); }
+  if (password) {
+    const hash = await bcrypt.hash(password, 12);
+    sets.push(`password_hash = $${i++}`); vals.push(hash);
+  }
+  if (sets.length === 0) return NextResponse.json({ ok: true });
+  await query(`UPDATE users SET ${sets.join(", ")} WHERE id = $1 AND role = 'customer'`, vals);
+  return NextResponse.json({ ok: true });
 }
 
 async function deleteUser({ userId }) {
