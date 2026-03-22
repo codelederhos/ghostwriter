@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS ghostwriter_posts (
   blog_primary_keyword VARCHAR(200),
   blog_url VARCHAR(500),
   -- GBP
-  gbp_text VARCHAR(300),
+  gbp_text TEXT,
   gbp_post_id VARCHAR(255),
   -- Image
   image_url VARCHAR(500),
