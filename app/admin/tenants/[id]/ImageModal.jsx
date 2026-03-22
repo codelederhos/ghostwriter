@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, ChevronLeft, ChevronRight, Trash2, Sparkles, Plus, MapPin, ExternalLink, Link, Unlink, Check } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Trash2, Sparkles, Plus, MapPin, ExternalLink, Link, Unlink, Check, ChevronDown, ChevronRight as ChevRight } from "lucide-react";
+import AddressAutocomplete from "./AddressAutocomplete";
 
 const ROOM_TYPES = [
   "Wohnzimmer","Küche","Bad","Schlafzimmer","Kinderzimmer","Flur",
@@ -44,8 +45,12 @@ export default function ImageModal({ images, initialIndex, onClose, onUpdate, on
   const [showNewProp, setShowNewProp]   = useState(false);
   const [newPropName, setNewPropName]   = useState("");
   const [newPropAddr, setNewPropAddr]   = useState("");
+  const [newPropLat,  setNewPropLat]    = useState(null);
+  const [newPropLng,  setNewPropLng]    = useState(null);
   const [newPropType, setNewPropType]   = useState("haus");
+  const [newPropParent, setNewPropParent] = useState("");
   const [newPropSaving, setNewPropSaving] = useState(false);
+  const [expandedNodes, setExpandedNodes] = useState(new Set()); // for tree UI
 
   // UI state
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
@@ -216,19 +221,39 @@ export default function ImageModal({ images, initialIndex, onClose, onUpdate, on
     const res = await fetch(`/api/tenants/${tenantId}/properties`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "create", name: newPropName.trim(), address: newPropAddr.trim() || null, type: newPropType }),
+      body: JSON.stringify({
+        action: "create",
+        name: newPropName.trim(),
+        address: newPropAddr.trim() || null,
+        lat: newPropLat,
+        lng: newPropLng,
+        type: newPropType,
+        parent_id: newPropParent || null,
+      }),
     });
     const data = await res.json();
     if (data.ok && data.property) {
       const p = { ...data.property, image_count: 0 };
-      setLocalProperties(prev => [p, ...prev]);
+      setLocalProperties(prev => [...prev, p]);
       onPropertyCreate?.(p);
-      // Sofort auswählen
       setPropertyId(p.id);
       await save("property_id", p.id);
-      setNewPropName(""); setNewPropAddr(""); setNewPropType("haus"); setShowNewProp(false);
+      setNewPropName(""); setNewPropAddr(""); setNewPropLat(null); setNewPropLng(null);
+      setNewPropType("haus"); setNewPropParent(""); setShowNewProp(false);
     }
     setNewPropSaving(false);
+  }
+
+  // Build tree helpers
+  function getChildren(parentId) {
+    return localProperties.filter(p => (p.parent_id || null) === (parentId || null));
+  }
+  function toggleExpand(id) {
+    setExpandedNodes(prev => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
   }
 
   if (!img) return null;
@@ -440,15 +465,14 @@ export default function ImageModal({ images, initialIndex, onClose, onUpdate, on
                   <button
                     onClick={() => setShowNewProp(v => !v)}
                     className="flex items-center gap-0.5 text-[11px] text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
-                    title="Neues Objekt direkt hier anlegen"
                   >
                     <Plus size={13} /> Neu
                   </button>
                 </div>
 
-                {/* Inline "Neues Objekt anlegen" */}
+                {/* Inline-Formular: Neues Objekt */}
                 {showNewProp && (
-                  <div className="mb-2 p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2">
+                  <div className="mb-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-2">
                     <input
                       autoFocus
                       className="w-full text-xs rounded-lg border border-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 bg-white transition-all"
@@ -457,74 +481,143 @@ export default function ImageModal({ images, initialIndex, onClose, onUpdate, on
                       onChange={(e) => setNewPropName(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") createProperty(); if (e.key === "Escape") setShowNewProp(false); }}
                     />
-                    <input
-                      className="w-full text-xs rounded-lg border border-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 bg-white transition-all"
-                      placeholder="Adresse (optional)"
+                    <AddressAutocomplete
                       value={newPropAddr}
-                      onChange={(e) => setNewPropAddr(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") createProperty(); }}
+                      onChange={(addr, lat, lng) => { setNewPropAddr(addr); if (lat) { setNewPropLat(lat); setNewPropLng(lng); } }}
+                      placeholder="Adresse suchen (OpenStreetMap)…"
                     />
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <select
-                        className="flex-1 text-xs rounded-lg border border-border px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                        className="text-xs rounded-lg border border-border px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
                         value={newPropType}
                         onChange={(e) => setNewPropType(e.target.value)}
                       >
-                        {[["haus","Haus"],["wohnung","Wohnung"],["gewerbe","Gewerbe"],["grundstueck","Grundstück"],["sonstiges","Sonstiges"]].map(([k,l]) => (
+                        {[["ort","Ort/Standort"],["haus","Haus"],["mfh","Mehrfam.haus"],["wohnung","Wohnung"],["zimmer","Zimmer/Bereich"],["gewerbe","Gewerbe"],["grundstueck","Grundstück"],["sonstiges","Sonstiges"]].map(([k,l]) => (
                           <option key={k} value={k}>{l}</option>
                         ))}
                       </select>
+                      <select
+                        className="text-xs rounded-lg border border-border px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                        value={newPropParent}
+                        onChange={(e) => setNewPropParent(e.target.value)}
+                      >
+                        <option value="">Kein übergeord. Objekt</option>
+                        {localProperties.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
                       <button
                         onClick={createProperty}
                         disabled={!newPropName.trim() || newPropSaving}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                        className="flex-1 py-1.5 text-xs rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                       >
-                        {newPropSaving ? "…" : "Anlegen"}
+                        {newPropSaving ? "…" : "Anlegen + auswählen"}
                       </button>
-                      <button onClick={() => setShowNewProp(false)} className="px-2 py-1.5 text-xs rounded-lg border border-border hover:bg-muted transition-colors">
+                      <button onClick={() => setShowNewProp(false)} className="px-2.5 py-1.5 text-xs rounded-lg border border-border hover:bg-muted transition-colors">
                         <X size={12} />
                       </button>
                     </div>
                   </div>
                 )}
 
-                <div className="space-y-1">
-                  <button
-                    onClick={() => setPropertyAndSave("")}
-                    className={`w-full text-left text-xs px-3 py-2 rounded-lg border transition-all ${
-                      !propertyId ? "border-indigo-400 bg-indigo-50 text-indigo-700 font-medium" : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                    }`}
-                  >
-                    Kein Objekt
-                  </button>
-                  {localProperties.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => setPropertyAndSave(p.id)}
-                      className={`w-full text-left text-xs px-3 py-2 rounded-lg border transition-all flex items-center justify-between gap-2 ${
-                        propertyId === p.id
-                          ? "border-indigo-400 bg-indigo-50 text-indigo-700 font-medium"
-                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                      }`}
-                    >
-                      <span className="truncate">{p.name}</span>
-                      {p.address && (
-                        <span className="shrink-0 flex items-center gap-0.5 text-[10px] opacity-60">
-                          <MapPin size={9} />{p.address.split(",")[0]}
-                        </span>
+                {/* Baum-Ansicht der Objekte */}
+                {(() => {
+                  const ICONS = { ort:"📍", haus:"🏢", mfh:"🏠", wohnung:"🚪", zimmer:"🛋️", gewerbe:"🏪", grundstueck:"🌳", sonstiges:"📦" };
+
+                  function TreeNode({ node, depth }) {
+                    const children = localProperties.filter(p => p.parent_id === node.id);
+                    const hasChildren = children.length > 0;
+                    const isExpanded = expandedNodes.has(node.id);
+                    const isSelected = propertyId === node.id;
+
+                    return (
+                      <div>
+                        <div
+                          style={{ paddingLeft: depth * 12 }}
+                          className={`flex items-center gap-1 py-1.5 px-2 rounded-lg cursor-pointer transition-all text-xs ${
+                            isSelected
+                              ? "bg-indigo-600 text-white font-medium"
+                              : "hover:bg-muted/60 text-foreground"
+                          }`}
+                          onClick={() => setPropertyAndSave(isSelected ? "" : node.id)}
+                        >
+                          {hasChildren ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleExpand(node.id); }}
+                              className={`w-4 h-4 flex items-center justify-center rounded transition-colors ${isSelected ? "text-white/80 hover:text-white" : "text-muted-foreground/60 hover:text-foreground"}`}
+                            >
+                              {isExpanded ? <ChevronDown size={10} /> : <ChevRight size={10} />}
+                            </button>
+                          ) : (
+                            <span className="w-4" />
+                          )}
+                          <span className="text-[10px]">{ICONS[node.type] || "📦"}</span>
+                          <span className="truncate flex-1">{node.name}</span>
+                          {node.image_count > 0 && (
+                            <span className={`text-[9px] shrink-0 px-1 rounded-full ${isSelected ? "bg-white/20" : "bg-muted text-muted-foreground"}`}>
+                              {node.image_count}
+                            </span>
+                          )}
+                        </div>
+                        {hasChildren && isExpanded && children.map(child => (
+                          <TreeNode key={child.id} node={child} depth={depth + 1} />
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  const roots = localProperties.filter(p => !p.parent_id);
+                  return (
+                    <div className="border border-border rounded-xl overflow-hidden">
+                      {/* Kein Objekt */}
+                      <div
+                        className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-all text-xs border-b border-border/50 ${
+                          !propertyId ? "bg-indigo-600 text-white font-medium" : "hover:bg-muted/40 text-muted-foreground"
+                        }`}
+                        onClick={() => setPropertyAndSave("")}
+                      >
+                        <span className="text-[10px]">—</span>
+                        <span>Kein Objekt</span>
+                      </div>
+                      {roots.length === 0 && !showNewProp && (
+                        <div className="px-3 py-3 text-[11px] text-muted-foreground/50 text-center">
+                          Noch keine Objekte. Oben "+ Neu" klicken.
+                        </div>
                       )}
-                    </button>
-                  ))}
-                  {localProperties.length === 0 && !showNewProp && (
-                    <p className="text-[11px] text-muted-foreground/50 px-1">Noch keine Objekte — oben "Neu" klicken.</p>
-                  )}
-                </div>
-                {currentProp?.address && (
+                      <div className="p-1 space-y-0.5">
+                        {roots.map(node => (
+                          <TreeNode key={node.id} node={node} depth={0} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Mini-Map wenn Koordinaten vorhanden */}
+                {currentProp?.lat && currentProp?.lng && (
+                  <div className="mt-2 space-y-1">
+                    <iframe
+                      loading="lazy"
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${currentProp.lng - 0.005},${currentProp.lat - 0.005},${currentProp.lng + 0.005},${currentProp.lat + 0.005}&layer=mapnik&marker=${currentProp.lat},${currentProp.lng}`}
+                      style={{ border: "none", borderRadius: "10px", width: "100%", height: "130px", display: "block" }}
+                      title="Standort"
+                    />
+                    <a
+                      href={`https://maps.google.com/?q=${currentProp.lat},${currentProp.lng}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 transition-colors"
+                    >
+                      <MapPin size={11} /> In Google Maps öffnen
+                    </a>
+                  </div>
+                )}
+                {currentProp && !currentProp.lat && currentProp.address && (
                   <a
                     href={`https://maps.google.com/?q=${encodeURIComponent(currentProp.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1.5 flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 transition-colors"
+                    target="_blank" rel="noopener noreferrer"
+                    className="mt-1 flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 transition-colors"
                   >
                     <MapPin size={11} /> In Google Maps öffnen
                   </a>

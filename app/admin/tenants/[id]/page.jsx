@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer, Download, Copy, Check, MapPin, Building2, Home, ChevronLeft, ExternalLink } from "lucide-react";
 import ImageModal from "./ImageModal";
+import AddressAutocomplete from "./AddressAutocomplete";
 import Link from "next/link";
 import { fmtMs } from "@/lib/utils/format";
 
@@ -71,8 +72,9 @@ export default function TenantDetailPage() {
   const [selectedImageIdx, setSelectedImageIdx] = useState(null); // null = modal closed
   const [properties, setProperties] = useState([]);
   const [showNewProperty, setShowNewProperty] = useState(false);
-  const [newProp, setNewProp] = useState({ name: "", address: "", type: "haus" });
+  const [newProp, setNewProp] = useState({ name: "", address: "", lat: null, lng: null, type: "haus", parent_id: "" });
   const [propSaving, setPropSaving] = useState(false);
+  const [expandedProps, setExpandedProps] = useState(new Set());
   const [selectedImages, setSelectedImages] = useState(new Set()); // multi-select
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const confirmDeleteTimerRef = useRef(null);
@@ -1908,27 +1910,36 @@ export default function TenantDetailPage() {
 
               {showNewProperty && (
                 <div className="px-4 py-3 border-b border-border bg-indigo-50/40 space-y-2">
+                  <input
+                    autoFocus
+                    className="input text-sm w-full"
+                    placeholder="Name (z.B. Schillerstr. 12 oder 2. OG links)"
+                    value={newProp.name}
+                    onChange={(e) => setNewProp(p => ({ ...p, name: e.target.value }))}
+                  />
+                  <AddressAutocomplete
+                    value={newProp.address}
+                    onChange={(addr, lat, lng) => setNewProp(p => ({ ...p, address: addr, lat: lat ?? p.lat, lng: lng ?? p.lng }))}
+                    placeholder="Adresse suchen (OpenStreetMap)…"
+                    inputClassName="text-sm py-2"
+                  />
                   <div className="grid grid-cols-2 gap-2">
-                    <input
-                      className="input text-sm col-span-2"
-                      placeholder="Name (z.B. Mehrfamilienhaus Schillerstr. 12)"
-                      value={newProp.name}
-                      onChange={(e) => setNewProp(p => ({ ...p, name: e.target.value }))}
-                    />
-                    <input
-                      className="input text-sm"
-                      placeholder="Adresse (optional)"
-                      value={newProp.address}
-                      onChange={(e) => setNewProp(p => ({ ...p, address: e.target.value }))}
-                    />
                     <select
                       className="input text-sm"
                       value={newProp.type}
                       onChange={(e) => setNewProp(p => ({ ...p, type: e.target.value }))}
                     >
-                      {[["haus","Haus"],["wohnung","Wohnung"],["gewerbe","Gewerbe"],["grundstueck","Grundstück"],["sonstiges","Sonstiges"]].map(([k,l]) => (
+                      {[["ort","Ort/Standort"],["haus","Haus"],["mfh","Mehrfam.haus"],["wohnung","Wohnung"],["zimmer","Zimmer/Bereich"],["gewerbe","Gewerbe"],["grundstueck","Grundstück"],["sonstiges","Sonstiges"]].map(([k,l]) => (
                         <option key={k} value={k}>{l}</option>
                       ))}
+                    </select>
+                    <select
+                      className="input text-sm"
+                      value={newProp.parent_id}
+                      onChange={(e) => setNewProp(p => ({ ...p, parent_id: e.target.value }))}
+                    >
+                      <option value="">Kein übergeord. Objekt</option>
+                      {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div className="flex gap-2">
@@ -1939,12 +1950,12 @@ export default function TenantDetailPage() {
                         const res = await fetch(`/api/tenants/${id}/properties`, {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ action: "create", ...newProp }),
+                          body: JSON.stringify({ action: "create", name: newProp.name, address: newProp.address || null, lat: newProp.lat, lng: newProp.lng, type: newProp.type, parent_id: newProp.parent_id || null }),
                         });
                         const data = await res.json();
                         if (data.ok) {
-                          setProperties(p => [data.property, ...p]);
-                          setNewProp({ name: "", address: "", type: "haus" });
+                          setProperties(p => [...p, data.property]);
+                          setNewProp({ name: "", address: "", lat: null, lng: null, type: "haus", parent_id: "" });
                           setShowNewProperty(false);
                         }
                         setPropSaving(false);
@@ -1958,70 +1969,71 @@ export default function TenantDetailPage() {
                 </div>
               )}
 
-              {properties.length === 0 && !showNewProperty && (
-                <div className="px-4 py-5 text-center text-xs text-muted-foreground/60">
-                  Noch keine Objekte. Häuser, Wohnungen oder Standorte anlegen → Bilder zuordnen.
-                </div>
-              )}
-
-              {properties.length > 0 && (
-                <div className="divide-y divide-border/50">
-                  {/* Alle-Filter */}
-                  <button
-                    onClick={() => setFilterProperty(null)}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 text-xs transition-colors ${filterProperty === null ? "bg-indigo-50 text-indigo-700 font-medium" : "hover:bg-muted/40 text-muted-foreground"}`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className={`w-1.5 h-1.5 rounded-full ${filterProperty === null ? "bg-indigo-500" : "bg-muted-foreground/30"}`} />
-                      Alle Bilder
-                    </span>
-                    <span className="text-[10px] opacity-60">{refImages.post.length}</span>
-                  </button>
-                  {properties.map(p => (
-                    <div key={p.id} className="group">
-                      <div className={`flex items-center justify-between px-4 py-2.5 transition-colors cursor-pointer ${filterProperty === p.id ? "bg-indigo-50 text-indigo-700" : "hover:bg-muted/40"}`}
-                        onClick={() => setFilterProperty(f => f === p.id ? null : p.id)}
+              {/* Baum-Ansicht */}
+              {(() => {
+                const ICONS = { ort:"📍", haus:"🏢", mfh:"🏠", wohnung:"🚪", zimmer:"🛋️", gewerbe:"🏪", grundstueck:"🌳", sonstiges:"📦" };
+                function PropTreeRow({ node, depth }) {
+                  const children = properties.filter(p => p.parent_id === node.id);
+                  const hasChildren = children.length > 0;
+                  const isExpanded = expandedProps.has(node.id);
+                  const isSelected = filterProperty === node.id;
+                  return (
+                    <>
+                      <div
+                        style={{ paddingLeft: 16 + depth * 14 }}
+                        className={`group flex items-center justify-between pr-3 py-2 cursor-pointer transition-colors text-xs ${isSelected ? "bg-indigo-50 text-indigo-700 font-medium" : "hover:bg-muted/40 text-muted-foreground"}`}
+                        onClick={() => setFilterProperty(f => f === node.id ? null : node.id)}
                       >
-                        <span className="flex items-center gap-2 min-w-0">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${filterProperty === p.id ? "bg-indigo-500" : "bg-muted-foreground/30"}`} />
-                          <span className="font-medium text-xs truncate">{p.name}</span>
-                          {p.address && <span className="text-[10px] text-muted-foreground/60 truncate hidden sm:block">{p.address}</span>}
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {hasChildren ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setExpandedProps(s => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; }); }}
+                              className="text-[9px] w-4 h-4 flex items-center justify-center"
+                            >
+                              {isExpanded ? "▾" : "▸"}
+                            </button>
+                          ) : <span className="w-4" />}
+                          <span>{ICONS[node.type] || "📦"}</span>
+                          <span className="truncate">{node.name}</span>
                         </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] opacity-60">{p.image_count}</span>
-                          {p.address && (
-                            <a
-                              href={`https://maps.google.com/?q=${encodeURIComponent(p.address)}`}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {node.image_count > 0 && <span className="text-[9px] opacity-60">{node.image_count}</span>}
+                          {(node.lat || node.address) && (
+                            <a href={node.lat ? `https://maps.google.com/?q=${node.lat},${node.lng}` : `https://maps.google.com/?q=${encodeURIComponent(node.address)}`}
                               target="_blank" rel="noopener noreferrer"
                               onClick={e => e.stopPropagation()}
                               className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500 hover:text-indigo-700"
-                              title="In Google Maps öffnen"
-                            >
-                              <MapPin size={12} />
-                            </a>
+                            ><MapPin size={11} /></a>
                           )}
                           <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              await fetch(`/api/tenants/${id}/properties`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ action: "delete", propertyId: p.id }),
-                              });
-                              setProperties(ps => ps.filter(x => x.id !== p.id));
-                              if (filterProperty === p.id) setFilterProperty(null);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/50 hover:text-red-500 p-0.5"
-                            title="Objekt löschen"
-                          >
-                            <X size={11} />
-                          </button>
+                            onClick={async (e) => { e.stopPropagation(); await fetch(`/api/tenants/${id}/properties`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", propertyId: node.id }) }); setProperties(ps => ps.filter(x => x.id !== node.id)); if (filterProperty === node.id) setFilterProperty(null); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/40 hover:text-red-500 p-0.5"
+                          ><X size={10} /></button>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                      {hasChildren && isExpanded && children.map(c => <PropTreeRow key={c.id} node={c} depth={depth + 1} />)}
+                    </>
+                  );
+                }
+                const roots = properties.filter(p => !p.parent_id);
+                return (
+                  <div className="divide-y divide-border/50">
+                    <button
+                      onClick={() => setFilterProperty(null)}
+                      className={`w-full flex items-center justify-between px-4 py-2 text-xs transition-colors ${filterProperty === null ? "bg-indigo-50 text-indigo-700 font-medium" : "hover:bg-muted/40 text-muted-foreground"}`}
+                    >
+                      <span className="flex items-center gap-2"><span className="text-[10px]">🗂️</span> Alle Bilder</span>
+                      <span className="text-[10px] opacity-60">{refImages.post.length}</span>
+                    </button>
+                    {properties.length === 0 && !showNewProperty && (
+                      <div className="px-4 py-4 text-center text-xs text-muted-foreground/50">
+                        Noch keine Objekte — oben "Neues Objekt" anlegen.
+                      </div>
+                    )}
+                    {roots.map(node => <PropTreeRow key={node.id} node={node} depth={0} />)}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* ── Filter: Zustand ─────────────────────────────────────────── */}
