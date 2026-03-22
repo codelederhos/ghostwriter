@@ -78,6 +78,11 @@ export default function TenantDetailPage() {
   const [selectedImages, setSelectedImages] = useState(new Set()); // multi-select
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const confirmDeleteTimerRef = useRef(null);
+  const [hoveredDeleteId, setHoveredDeleteId] = useState(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const bulkDeleteTimerRef = useRef(null);
+  const [bulkTagInput, setBulkTagInput] = useState("");
+  const [showBulkTagInput, setShowBulkTagInput] = useState(false); // "add" | "remove" | false
   const [filterProperty, setFilterProperty] = useState(null); // null = alle
   const [filterCondition, setFilterCondition] = useState(null); // null = alle
 
@@ -453,6 +458,77 @@ export default function TenantDetailPage() {
       body: JSON.stringify({ action: "delete_image", imageId }),
     });
     loadRefImages();
+  }
+
+  async function bulkDelete(imageIds) {
+    await fetch(`/api/tenants/${id}/images`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "bulk_delete", imageIds }),
+    });
+    setRefImages(prev => ({ ...prev, post: prev.post.filter(img => !imageIds.includes(img.id)) }));
+    setSelectedImages(new Set());
+    setBulkDeleteConfirm(false);
+    loadProperties();
+  }
+
+  async function bulkAnalyze() {
+    setVisionStatus("running");
+    await fetch(`/api/tenants/${id}/images/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "start" }),
+    });
+    setSelectedImages(new Set());
+  }
+
+  async function bulkAddTag(tag) {
+    const ids = Array.from(selectedImages);
+    if (!tag.trim() || !ids.length) return;
+    // Update each image's ai_tags locally and on server
+    const t = tag.trim().toLowerCase();
+    setRefImages(prev => ({
+      ...prev,
+      post: prev.post.map(img => selectedImages.has(img.id)
+        ? { ...img, ai_tags: [...new Set([...(img.ai_tags || []), t])] }
+        : img
+      ),
+    }));
+    await Promise.all(ids.map(imgId => {
+      const img = refImages.post.find(i => i.id === imgId);
+      const tags = [...new Set([...(img?.ai_tags || []), t])];
+      return fetch(`/api/tenants/${id}/images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update_image_meta", imageId: imgId, ai_tags: tags }),
+      });
+    }));
+    setBulkTagInput("");
+    setShowBulkTagInput(false);
+  }
+
+  async function bulkRemoveTag(tag) {
+    const ids = Array.from(selectedImages);
+    if (!tag.trim() || !ids.length) return;
+    const t = tag.trim().toLowerCase();
+    setRefImages(prev => ({
+      ...prev,
+      post: prev.post.map(img => selectedImages.has(img.id)
+        ? { ...img, ai_tags: (img.ai_tags || []).filter(x => x !== t) }
+        : img
+      ),
+    }));
+    await Promise.all(ids.map(imgId => {
+      const img = refImages.post.find(i => i.id === imgId);
+      const tags = (img?.ai_tags || []).filter(x => x !== t);
+      return fetch(`/api/tenants/${id}/images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update_image_meta", imageId: imgId, ai_tags: tags }),
+      });
+    }));
+    setBulkTagInput("");
+    setShowBulkTagInput(false);
   }
 
   async function regenerateImage() {
@@ -2053,36 +2129,6 @@ export default function TenantDetailPage() {
                     </button>
                   );
                 })}
-                {selectedImages.size > 0 && (
-                  <div className="ml-auto flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{selectedImages.size} ausgewählt</span>
-                    <select
-                      className="text-xs border border-border rounded-lg px-2 py-1"
-                      defaultValue=""
-                      onChange={async (e) => {
-                        const pid = e.target.value;
-                        if (!pid) return;
-                        await fetch(`/api/tenants/${id}/images`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ action: "bulk_assign", imageIds: Array.from(selectedImages), propertyId: pid === "_clear" ? null : pid }),
-                        });
-                        const update = pid === "_clear" ? null : pid;
-                        setRefImages(prev => ({ ...prev, post: prev.post.map(img => selectedImages.has(img.id) ? { ...img, property_id: update } : img) }));
-                        setSelectedImages(new Set());
-                        loadProperties();
-                        e.target.value = "";
-                      }}
-                    >
-                      <option value="">Objekt zuordnen…</option>
-                      {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      <option value="_clear">— Kein Objekt</option>
-                    </select>
-                    <button onClick={() => setSelectedImages(new Set())} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                      <X size={13} />
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
@@ -2150,7 +2196,9 @@ export default function TenantDetailPage() {
                           ${isSelected
                             ? "border-indigo-400 bg-indigo-50/40 shadow-sm"
                             : isConfirmDelete
-                            ? "border-red-300 bg-red-50/30"
+                            ? "border-red-300 bg-red-50/40"
+                            : hoveredDeleteId === img.id
+                            ? "border-red-300 bg-red-50/60 shadow-sm"
                             : "border-border/60 hover:border-border hover:shadow-sm hover:bg-muted/20"
                           }`}
                         onClick={() => {
@@ -2237,13 +2285,18 @@ export default function TenantDetailPage() {
                         </div>
 
                         {/* Delete */}
-                        <div className="shrink-0 flex items-center pl-1" onClick={e => e.stopPropagation()}>
+                        <div
+                          className="shrink-0 flex items-center pl-1"
+                          onClick={e => e.stopPropagation()}
+                          onMouseEnter={() => setHoveredDeleteId(img.id)}
+                          onMouseLeave={() => setHoveredDeleteId(null)}
+                        >
                           <button
                             onClick={() => triggerDeleteConfirm(img.id)}
                             className={`h-7 rounded-lg text-[11px] font-medium transition-all px-2 flex items-center gap-1
                               ${isConfirmDelete
                                 ? "bg-red-500 text-white opacity-100 animate-pulse"
-                                : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200"
+                                : "opacity-0 group-hover:opacity-100 text-red-500 hover:bg-red-100 border border-transparent hover:border-red-200"
                               }`}
                             title={isConfirmDelete ? "Nochmal klicken zum Bestätigen" : "Bild löschen"}
                           >
@@ -2259,6 +2312,170 @@ export default function TenantDetailPage() {
             })()}
           </div>
         </div>
+      )}
+
+      {/* ── Floating Multi-Select Bar ───────────────────────────────────── */}
+      {selectedImages.size > 0 && createPortal(
+        <div
+          style={{ position: "fixed", bottom: 24, left: "50%", zIndex: 500, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, animation: "floatBarIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both" }}
+        >
+          {/* Tag-Input Expansion */}
+          {showBulkTagInput && (
+            <div
+              style={{ animation: "floatBarIn 0.18s cubic-bezier(0.34,1.56,0.64,1) both" }}
+              className="flex items-center gap-2 bg-card border border-border rounded-2xl shadow-2xl px-3 py-2"
+            >
+              <span className="text-[11px] text-muted-foreground shrink-0">
+                {showBulkTagInput === "add" ? "Tag hinzufügen:" : "Tag entfernen:"}
+              </span>
+              <input
+                autoFocus
+                value={bulkTagInput}
+                onChange={e => setBulkTagInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") showBulkTagInput === "add" ? bulkAddTag(bulkTagInput) : bulkRemoveTag(bulkTagInput);
+                  if (e.key === "Escape") { setShowBulkTagInput(false); setBulkTagInput(""); }
+                }}
+                placeholder="z.B. küche"
+                className="text-xs border border-border rounded-lg px-2 py-1 w-32 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400"
+              />
+              <button
+                onClick={() => showBulkTagInput === "add" ? bulkAddTag(bulkTagInput) : bulkRemoveTag(bulkTagInput)}
+                className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-all ${showBulkTagInput === "add" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-red-500 text-white hover:bg-red-600"}`}
+              >
+                {showBulkTagInput === "add" ? "Hinzufügen" : "Entfernen"}
+              </button>
+              <button onClick={() => { setShowBulkTagInput(false); setBulkTagInput(""); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Main Bar */}
+          <div className="flex items-center gap-1.5 bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl px-3 py-2.5">
+            {/* Count */}
+            <div className="flex items-center gap-1.5 pr-2 mr-1 border-r border-white/15">
+              <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-white leading-none">{selectedImages.size}</span>
+              </div>
+              <span className="text-[11px] text-white/70 whitespace-nowrap">
+                {selectedImages.size === 1 ? "Bild" : "Bilder"} gewählt
+              </span>
+            </div>
+
+            {/* Objekt zuordnen */}
+            <select
+              className="text-[11px] bg-white/10 border border-white/15 text-white rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-white/30 cursor-pointer"
+              defaultValue=""
+              onChange={async (e) => {
+                const pid = e.target.value;
+                if (!pid) return;
+                await fetch(`/api/tenants/${id}/images`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "bulk_assign", imageIds: Array.from(selectedImages), propertyId: pid === "_clear" ? null : pid }),
+                });
+                const update = pid === "_clear" ? null : pid;
+                setRefImages(prev => ({ ...prev, post: prev.post.map(img => selectedImages.has(img.id) ? { ...img, property_id: update } : img) }));
+                setSelectedImages(new Set());
+                loadProperties();
+                e.target.value = "";
+              }}
+            >
+              <option value="">Objekt zuordnen…</option>
+              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <option value="_clear">— Kein Objekt</option>
+            </select>
+
+            {/* Zustand */}
+            <select
+              className="text-[11px] bg-white/10 border border-white/15 text-white rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-white/30 cursor-pointer"
+              defaultValue=""
+              onChange={async (e) => {
+                const tag = e.target.value;
+                if (!tag) return;
+                await fetch(`/api/tenants/${id}/images`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "bulk_assign", imageIds: Array.from(selectedImages), conditionTag: tag === "_clear" ? null : tag }),
+                });
+                const update = tag === "_clear" ? null : tag;
+                setRefImages(prev => ({ ...prev, post: prev.post.map(img => selectedImages.has(img.id) ? { ...img, condition_tag: update } : img) }));
+                setSelectedImages(new Set());
+                e.target.value = "";
+              }}
+            >
+              <option value="">Zustand setzen…</option>
+              <option value="vorher">Vorher</option>
+              <option value="dazwischen">Umbau</option>
+              <option value="nachher">Nachher</option>
+              <option value="neutral">Neutral</option>
+              <option value="_clear">— Kein Zustand</option>
+            </select>
+
+            {/* KI-Analyse */}
+            <button
+              onClick={bulkAnalyze}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-white/10 text-white/80 hover:bg-emerald-600 hover:text-white border border-white/15 transition-all whitespace-nowrap"
+            >
+              KI-Analyse
+            </button>
+
+            {/* Tags */}
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => { setShowBulkTagInput(s => s === "add" ? false : "add"); setBulkTagInput(""); }}
+                className={`text-[11px] font-medium px-2 py-1 rounded-l-lg border border-white/15 transition-all whitespace-nowrap ${showBulkTagInput === "add" ? "bg-emerald-600 text-white border-emerald-500" : "bg-white/10 text-white/80 hover:bg-white/20"}`}
+                title="Tag hinzufügen"
+              >
+                Tag +
+              </button>
+              <button
+                onClick={() => { setShowBulkTagInput(s => s === "remove" ? false : "remove"); setBulkTagInput(""); }}
+                className={`text-[11px] font-medium px-2 py-1 rounded-r-lg border-r border-y border-white/15 transition-all whitespace-nowrap ${showBulkTagInput === "remove" ? "bg-red-500 text-white border-red-400" : "bg-white/10 text-white/80 hover:bg-white/20"}`}
+                title="Tag entfernen"
+              >
+                −
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="w-px h-5 bg-white/15 mx-0.5" />
+
+            {/* Löschen */}
+            <button
+              onClick={() => {
+                if (bulkDeleteConfirm) {
+                  bulkDelete(Array.from(selectedImages));
+                  if (bulkDeleteTimerRef.current) clearTimeout(bulkDeleteTimerRef.current);
+                  setBulkDeleteConfirm(false);
+                } else {
+                  setBulkDeleteConfirm(true);
+                  if (bulkDeleteTimerRef.current) clearTimeout(bulkDeleteTimerRef.current);
+                  bulkDeleteTimerRef.current = setTimeout(() => setBulkDeleteConfirm(false), 3000);
+                }
+              }}
+              className={`text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 whitespace-nowrap
+                ${bulkDeleteConfirm
+                  ? "bg-red-500 border-red-400 text-white animate-pulse"
+                  : "bg-white/10 border-white/15 text-white/70 hover:bg-red-500/80 hover:text-white hover:border-red-400"
+                }`}
+            >
+              <Trash2 size={11} />
+              {bulkDeleteConfirm ? "Sicher?" : "Löschen"}
+            </button>
+
+            {/* Cancel */}
+            <button
+              onClick={() => { setSelectedImages(new Set()); setBulkDeleteConfirm(false); setShowBulkTagInput(false); }}
+              className="ml-1 w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/60 hover:text-white transition-all"
+              title="Auswahl aufheben"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* ── ImageModal ─────────────────────────────────────────────────────── */}

@@ -115,6 +115,16 @@ export async function POST(req, { params }) {
       return NextResponse.json({ ok: true });
     }
 
+    case "bulk_delete": {
+      const { imageIds } = body;
+      if (!imageIds?.length) return NextResponse.json({ ok: true });
+      await query(
+        "DELETE FROM tenant_reference_images WHERE id = ANY($1::uuid[]) AND tenant_id = $2",
+        [imageIds, id]
+      );
+      return NextResponse.json({ ok: true });
+    }
+
     default:
       return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
   }

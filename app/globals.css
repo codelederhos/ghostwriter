@@ -20,6 +20,11 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
+@keyframes floatBarIn {
+  from { opacity: 0; transform: translate(-50%, 18px) scale(0.95); }
+  to   { opacity: 1; transform: translate(-50%, 0)    scale(1); }
+}
+
 @layer components {
   /* Admin Layout */
   .admin-sidebar { @apply fixed left-0 top-0 bottom-0 w-64 bg-foreground text-white p-6 flex flex-col; }
