@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
-import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer, Download, Copy, Check } from "lucide-react";
+import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer, Download, Copy, Check, MapPin, Building2, Home, ChevronLeft, ExternalLink } from "lucide-react";
+import ImageModal from "./ImageModal";
 import Link from "next/link";
 import { fmtMs } from "@/lib/utils/format";
 
@@ -67,6 +68,16 @@ export default function TenantDetailPage() {
   const [visionAnalyzed, setVisionAnalyzed] = useState(0);
   const [visionTotal, setVisionTotal] = useState(0);
   const visionPollRef = useRef(null);
+  const [selectedImageIdx, setSelectedImageIdx] = useState(null); // null = modal closed
+  const [properties, setProperties] = useState([]);
+  const [showNewProperty, setShowNewProperty] = useState(false);
+  const [newProp, setNewProp] = useState({ name: "", address: "", type: "haus" });
+  const [propSaving, setPropSaving] = useState(false);
+  const [selectedImages, setSelectedImages] = useState(new Set()); // multi-select
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const confirmDeleteTimerRef = useRef(null);
+  const [filterProperty, setFilterProperty] = useState(null); // null = alle
+  const [filterCondition, setFilterCondition] = useState(null); // null = alle
 
   function showMsg(text, type = "success") {
     setMsg(text);
@@ -74,7 +85,7 @@ export default function TenantDetailPage() {
     setTimeout(() => setMsg(""), type === "error" ? 8000 : 4000);
   }
 
-  useEffect(() => { loadTenant(); loadModelLabels(); loadBilling(); loadTenantPosts(); loadRefImages(); loadGoogleStatus(); loadAnalyzeStatus(); }, [id]);
+  useEffect(() => { loadTenant(); loadModelLabels(); loadBilling(); loadTenantPosts(); loadRefImages(); loadGoogleStatus(); loadAnalyzeStatus(); loadProperties(); }, [id]);
 
   // Google Tab: URL-Param nach OAuth-Callback + Status laden
   useEffect(() => {
@@ -155,6 +166,39 @@ export default function TenantDetailPage() {
       setVisionAnalyzed(data.analyzed || 0);
       setVisionTotal(data.total || 0);
     } catch { /* ignore */ }
+  }
+
+  async function loadProperties() {
+    const res = await fetch(`/api/tenants/${id}/properties`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setProperties(data.properties || []);
+  }
+
+  function handleImageUpdate(imageId, updates) {
+    setRefImages(prev => ({
+      ...prev,
+      post: prev.post.map(img => img.id === imageId ? { ...img, ...updates } : img),
+    }));
+    // Refresh property counts if property changed
+    if (updates.property_id !== undefined) loadProperties();
+  }
+
+  function handleImageDelete(imageId) {
+    setRefImages(prev => ({ ...prev, post: prev.post.filter(img => img.id !== imageId) }));
+    deleteRefImage(imageId);
+  }
+
+  function triggerDeleteConfirm(imageId) {
+    if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current);
+    if (confirmDeleteId === imageId) {
+      // Second click → delete
+      setConfirmDeleteId(null);
+      deleteRefImage(imageId);
+    } else {
+      setConfirmDeleteId(imageId);
+      confirmDeleteTimerRef.current = setTimeout(() => setConfirmDeleteId(null), 3000);
+    }
   }
 
   async function googleAction(action, extra = {}) {
@@ -1844,9 +1888,195 @@ export default function TenantDetailPage() {
               </div>
             )}
 
-            {/* Drag & Drop Upload Zone */}
+            {/* ── Objekte & Standorte ─────────────────────────────────────── */}
+            <div className="border border-border rounded-xl overflow-hidden mt-3">
+              <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Building2 size={14} className="text-muted-foreground" />
+                  <span className="text-sm font-semibold">Objekte & Standorte</span>
+                  {properties.length > 0 && (
+                    <span className="text-[10px] bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5 font-medium">{properties.length}</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowNewProperty(v => !v)}
+                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                >
+                  <Plus size={13} /> Neues Objekt
+                </button>
+              </div>
+
+              {showNewProperty && (
+                <div className="px-4 py-3 border-b border-border bg-indigo-50/40 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      className="input text-sm col-span-2"
+                      placeholder="Name (z.B. Mehrfamilienhaus Schillerstr. 12)"
+                      value={newProp.name}
+                      onChange={(e) => setNewProp(p => ({ ...p, name: e.target.value }))}
+                    />
+                    <input
+                      className="input text-sm"
+                      placeholder="Adresse (optional)"
+                      value={newProp.address}
+                      onChange={(e) => setNewProp(p => ({ ...p, address: e.target.value }))}
+                    />
+                    <select
+                      className="input text-sm"
+                      value={newProp.type}
+                      onChange={(e) => setNewProp(p => ({ ...p, type: e.target.value }))}
+                    >
+                      {[["haus","Haus"],["wohnung","Wohnung"],["gewerbe","Gewerbe"],["grundstueck","Grundstück"],["sonstiges","Sonstiges"]].map(([k,l]) => (
+                        <option key={k} value={k}>{l}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      disabled={!newProp.name.trim() || propSaving}
+                      onClick={async () => {
+                        setPropSaving(true);
+                        const res = await fetch(`/api/tenants/${id}/properties`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ action: "create", ...newProp }),
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                          setProperties(p => [data.property, ...p]);
+                          setNewProp({ name: "", address: "", type: "haus" });
+                          setShowNewProperty(false);
+                        }
+                        setPropSaving(false);
+                      }}
+                      className="btn-primary text-xs disabled:opacity-50"
+                    >
+                      {propSaving ? "Speichert…" : "Erstellen"}
+                    </button>
+                    <button onClick={() => setShowNewProperty(false)} className="btn-ghost text-xs">Abbrechen</button>
+                  </div>
+                </div>
+              )}
+
+              {properties.length === 0 && !showNewProperty && (
+                <div className="px-4 py-5 text-center text-xs text-muted-foreground/60">
+                  Noch keine Objekte. Häuser, Wohnungen oder Standorte anlegen → Bilder zuordnen.
+                </div>
+              )}
+
+              {properties.length > 0 && (
+                <div className="divide-y divide-border/50">
+                  {/* Alle-Filter */}
+                  <button
+                    onClick={() => setFilterProperty(null)}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 text-xs transition-colors ${filterProperty === null ? "bg-indigo-50 text-indigo-700 font-medium" : "hover:bg-muted/40 text-muted-foreground"}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${filterProperty === null ? "bg-indigo-500" : "bg-muted-foreground/30"}`} />
+                      Alle Bilder
+                    </span>
+                    <span className="text-[10px] opacity-60">{refImages.post.length}</span>
+                  </button>
+                  {properties.map(p => (
+                    <div key={p.id} className="group">
+                      <div className={`flex items-center justify-between px-4 py-2.5 transition-colors cursor-pointer ${filterProperty === p.id ? "bg-indigo-50 text-indigo-700" : "hover:bg-muted/40"}`}
+                        onClick={() => setFilterProperty(f => f === p.id ? null : p.id)}
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${filterProperty === p.id ? "bg-indigo-500" : "bg-muted-foreground/30"}`} />
+                          <span className="font-medium text-xs truncate">{p.name}</span>
+                          {p.address && <span className="text-[10px] text-muted-foreground/60 truncate hidden sm:block">{p.address}</span>}
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] opacity-60">{p.image_count}</span>
+                          {p.address && (
+                            <a
+                              href={`https://maps.google.com/?q=${encodeURIComponent(p.address)}`}
+                              target="_blank" rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500 hover:text-indigo-700"
+                              title="In Google Maps öffnen"
+                            >
+                              <MapPin size={12} />
+                            </a>
+                          )}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await fetch(`/api/tenants/${id}/properties`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ action: "delete", propertyId: p.id }),
+                              });
+                              setProperties(ps => ps.filter(x => x.id !== p.id));
+                              if (filterProperty === p.id) setFilterProperty(null);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/50 hover:text-red-500 p-0.5"
+                            title="Objekt löschen"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── Filter: Zustand ─────────────────────────────────────────── */}
+            {refImages.post.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-3">
+                <span className="text-xs text-muted-foreground shrink-0">Filter:</span>
+                {[null,"vorher","dazwischen","nachher","neutral"].map(key => {
+                  const labels = { null:"Alle", vorher:"Vorher", dazwischen:"Umbau", nachher:"Nachher", neutral:"Neutral" };
+                  const active = filterCondition === key;
+                  return (
+                    <button
+                      key={String(key)}
+                      onClick={() => setFilterCondition(active ? null : key)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-all ${active ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:border-muted-foreground/40"}`}
+                    >
+                      {labels[key]}
+                    </button>
+                  );
+                })}
+                {selectedImages.size > 0 && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{selectedImages.size} ausgewählt</span>
+                    <select
+                      className="text-xs border border-border rounded-lg px-2 py-1"
+                      defaultValue=""
+                      onChange={async (e) => {
+                        const pid = e.target.value;
+                        if (!pid) return;
+                        await fetch(`/api/tenants/${id}/images`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ action: "bulk_assign", imageIds: Array.from(selectedImages), propertyId: pid === "_clear" ? null : pid }),
+                        });
+                        const update = pid === "_clear" ? null : pid;
+                        setRefImages(prev => ({ ...prev, post: prev.post.map(img => selectedImages.has(img.id) ? { ...img, property_id: update } : img) }));
+                        setSelectedImages(new Set());
+                        loadProperties();
+                        e.target.value = "";
+                      }}
+                    >
+                      <option value="">Objekt zuordnen…</option>
+                      {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      <option value="_clear">— Kein Objekt</option>
+                    </select>
+                    <button onClick={() => setSelectedImages(new Set())} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      <X size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Upload Zone ─────────────────────────────────────────────── */}
             <label
-              className="flex flex-col items-center justify-center py-8 rounded-lg border-2 border-dashed border-border hover:border-emerald-400 hover:bg-emerald-50/30 cursor-pointer transition-all mt-4 mb-4"
+              className="flex flex-col items-center justify-center py-7 rounded-xl border-2 border-dashed border-border hover:border-emerald-400 hover:bg-emerald-50/30 cursor-pointer transition-all mt-3 mb-1"
               onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-emerald-400", "bg-emerald-50/30"); }}
               onDragLeave={(e) => { e.currentTarget.classList.remove("border-emerald-400", "bg-emerald-50/30"); }}
               onDrop={(e) => {
@@ -1856,7 +2086,7 @@ export default function TenantDetailPage() {
                 if (f && f.type.startsWith("image/")) handlePostImageUpload(f, "", []);
               }}
             >
-              <Plus size={24} className="text-muted-foreground/30 mb-2" />
+              <Plus size={22} className="text-muted-foreground/30 mb-2" />
               <span className="text-sm text-muted-foreground">Bild hierher ziehen oder klicken</span>
               <span className="text-[10px] text-muted-foreground/50 mt-1">JPG, PNG, WebP · max 25 MB</span>
               <input type="file" accept="image/*" className="hidden" onChange={(e) => {
@@ -1866,107 +2096,170 @@ export default function TenantDetailPage() {
             </label>
 
             {uploading && (
-              <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
                 <span className="w-4 h-4 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" />
                 Wird hochgeladen und konvertiert...
               </div>
             )}
 
-            {refImages.post.length > 0 && (
-              <div className="space-y-3">
-                {refImages.post.map((img) => (
-                  <div key={img.id} className="flex gap-3 p-2 rounded-lg border border-border/50 hover:border-border transition-colors group">
-                    <div className="relative flex-shrink-0">
-                      <img src={img.thumb_url || img.image_url} alt={img.description || ""} className="w-28 h-20 object-cover rounded-md cursor-pointer" onClick={() => window.open(img.image_url, "_blank")} title="Vergrößern" />
-                      <button
-                        onClick={() => deleteRefImage(img.id)}
-                        className="absolute -top-1 -right-1 dw-icon-btn-destructive bg-white/90 backdrop-blur-sm !w-5 !h-5 opacity-0 group-hover:opacity-100 transition-opacity"
+            {/* ── Bildliste (neu) ─────────────────────────────────────────── */}
+            {refImages.post.length > 0 && (() => {
+              const filtered = refImages.post.filter(img => {
+                if (filterProperty && img.property_id !== filterProperty) return false;
+                if (filterCondition && (img.condition_tag || "neutral") !== filterCondition) return false;
+                return true;
+              });
+
+              const COND_STYLE = {
+                vorher:     "bg-orange-50 text-orange-700 border-orange-200",
+                dazwischen: "bg-blue-50 text-blue-700 border-blue-200",
+                nachher:    "bg-teal-50 text-teal-700 border-teal-200",
+                neutral:    "bg-gray-50 text-gray-500 border-gray-200",
+              };
+              const COND_LABEL = { vorher:"Vorher", dazwischen:"Umbau", nachher:"Nachher", neutral:"Neutral" };
+
+              return (
+                <div className="space-y-1.5 mt-2">
+                  {filtered.length === 0 && (
+                    <p className="text-xs text-center text-muted-foreground/50 py-6">Keine Bilder mit diesen Filtern.</p>
+                  )}
+                  {filtered.map((img) => {
+                    const prop = properties.find(p => p.id === img.property_id);
+                    const isSelected = selectedImages.has(img.id);
+                    const isConfirmDelete = confirmDeleteId === img.id;
+                    const hasDesc = (img.description?.trim()?.length ?? 0) > 5;
+                    const condKey = img.condition_tag || "neutral";
+                    const hasSequence = !!img.sequence_group;
+
+                    return (
+                      <div
+                        key={img.id}
+                        className={`flex gap-2.5 p-2 rounded-xl border transition-all duration-200 group cursor-pointer
+                          ${isSelected
+                            ? "border-indigo-400 bg-indigo-50/40 shadow-sm"
+                            : isConfirmDelete
+                            ? "border-red-300 bg-red-50/30"
+                            : "border-border/60 hover:border-border hover:shadow-sm hover:bg-muted/20"
+                          }`}
+                        onClick={() => {
+                          const realIdx = refImages.post.findIndex(i => i.id === img.id);
+                          setSelectedImageIdx(realIdx);
+                        }}
                       >
-                        <Trash2 size={9} />
-                      </button>
-                    </div>
-                    <div className="flex-1 space-y-1.5 min-w-0">
-                      {/* Badges-Zeile */}
-                      <div className="flex flex-wrap items-center gap-1">
-                        {(() => {
-                          const hasDesc = (img.description?.trim()?.length ?? 0) > 5;
-                          const hasCats = (img.categories?.length ?? 0) > 0;
-                          const ready = hasDesc || hasCats;
-                          return (
-                            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                              ready ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${ready ? "bg-emerald-500" : "bg-amber-400"}`} />
-                              {ready ? "KI kann wählen" : "Beschreibung fehlt"}
+                        {/* Checkbox (multi-select) */}
+                        <div
+                          className="shrink-0 flex items-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedImages(prev => {
+                              const s = new Set(prev);
+                              s.has(img.id) ? s.delete(img.id) : s.add(img.id);
+                              return s;
+                            });
+                          }}
+                        >
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0 mt-0.5
+                            ${isSelected
+                              ? "bg-indigo-600 border-indigo-600"
+                              : "border-border/60 group-hover:border-muted-foreground/40"
+                            }`}
+                          >
+                            {isSelected && <Check size={9} className="text-white" />}
+                          </div>
+                        </div>
+
+                        {/* Thumbnail */}
+                        <div className="relative shrink-0">
+                          <img
+                            src={img.thumb_url || img.image_url}
+                            alt={img.description || ""}
+                            className="w-24 h-16 object-cover rounded-lg"
+                          />
+                          {hasSequence && (
+                            <span className="absolute top-0.5 left-0.5 bg-indigo-600/80 backdrop-blur-sm rounded-full p-0.5" title="Teil einer Sequenz">
+                              <svg width="8" height="8" viewBox="0 0 16 16" fill="white"><path d="M8 1l2.5 4h-1.5v4h-2v-4h-1.5z"/><circle cx="8" cy="14" r="2"/></svg>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {/* KI-Bereit Badge */}
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium border ${hasDesc ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-600 border-amber-200"}`}>
+                              <span className={`w-1 h-1 rounded-full ${hasDesc ? "bg-emerald-500" : "bg-amber-400"}`} />
+                              {hasDesc ? "KI bereit" : "fehlt"}
+                            </span>
+                            {/* Raumtyp */}
+                            {img.room_type && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {img.room_type}
+                              </span>
+                            )}
+                            {/* Zustand */}
+                            {condKey !== "neutral" && (
+                              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium border ${COND_STYLE[condKey] || COND_STYLE.neutral}`}>
+                                {COND_LABEL[condKey]}
+                              </span>
+                            )}
+                            {/* Objekt */}
+                            {prop && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-200 truncate max-w-[100px]">
+                                {prop.name}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate leading-relaxed">
+                            {img.description || <span className="italic opacity-50">Keine Beschreibung</span>}
+                          </p>
+                          {/* Tags */}
+                          {(img.ai_tags?.length > 0) && (
+                            <div className="flex flex-wrap gap-1">
+                              {(img.ai_tags || []).slice(0, 4).map(t => (
+                                <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/70">
+                                  {t}
+                                </span>
+                              ))}
                             </div>
-                          );
-                        })()}
-                        {img.room_type && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                            {img.room_type}
-                          </span>
-                        )}
-                        {img.condition_tag && img.condition_tag !== "neutral" && (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                            img.condition_tag === "vorher"
-                              ? "bg-orange-50 text-orange-700 border border-orange-200"
-                              : "bg-teal-50 text-teal-700 border border-teal-200"
-                          }`}>
-                            {img.condition_tag}
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        className="form-input text-sm"
-                        value={img.description || ""}
-                        onChange={(e) => {
-                          const updated = refImages.post.map(i => i.id === img.id ? { ...i, description: e.target.value } : i);
-                          setRefImages({ ...refImages, post: updated });
-                        }}
-                        onBlur={async (e) => {
-                          await fetch(`/api/tenants/${id}/images`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ action: "update_post_image", imageId: img.id, description: e.target.value, categories: img.categories || [] }),
-                          });
-                        }}
-                        placeholder="Was zeigt dieses Bild? (z.B. Mehrfamilienhaus in München, Herbst)"
-                      />
-                      <div className="flex flex-wrap gap-1">
-                        {topics.map((t, ti) => {
-                          const cats = img.categories || [];
-                          const isSelected = cats.includes(t.label);
-                          return (
-                            <button
-                              key={ti}
-                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
-                                isSelected
-                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
-                                  : "bg-muted/50 text-muted-foreground/60 border border-transparent hover:border-muted-foreground/20"
+                          )}
+                        </div>
+
+                        {/* Delete */}
+                        <div className="shrink-0 flex items-center pl-1" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => triggerDeleteConfirm(img.id)}
+                            className={`h-7 rounded-lg text-[11px] font-medium transition-all px-2 flex items-center gap-1
+                              ${isConfirmDelete
+                                ? "bg-red-500 text-white opacity-100 animate-pulse"
+                                : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200"
                               }`}
-                              onClick={async () => {
-                                const newCats = isSelected ? cats.filter(c => c !== t.label) : [...cats, t.label];
-                                const updated = refImages.post.map(i => i.id === img.id ? { ...i, categories: newCats } : i);
-                                setRefImages({ ...refImages, post: updated });
-                                await fetch(`/api/tenants/${id}/images`, {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ action: "update_post_image", imageId: img.id, description: img.description, categories: newCats }),
-                                });
-                              }}
-                            >
-                              {t.label || `Kat. ${ti}`}
-                            </button>
-                          );
-                        })}
+                            title={isConfirmDelete ? "Nochmal klicken zum Bestätigen" : "Bild löschen"}
+                          >
+                            <Trash2 size={11} />
+                            {isConfirmDelete && "Sicher?"}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
+      )}
+
+      {/* ── ImageModal ─────────────────────────────────────────────────────── */}
+      {selectedImageIdx !== null && refImages.post.length > 0 && (
+        <ImageModal
+          images={refImages.post}
+          initialIndex={selectedImageIdx}
+          tenantId={id}
+          properties={properties}
+          onClose={() => setSelectedImageIdx(null)}
+          onUpdate={handleImageUpdate}
+          onDelete={handleImageDelete}
+        />
       )}
 
       {/* Tab: Reporting */}

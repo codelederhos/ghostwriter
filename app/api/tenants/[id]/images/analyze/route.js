@@ -75,13 +75,35 @@ async function analyzeImage(imageUrl, imageId) {
   return JSON.parse(jsonMatch[0]);
 }
 
-// ─── POST: Batch-Analyse starten (Fire & Forget) ─────────────────────────────
+// ─── POST: Einzel-Bild synchron analysieren ODER Batch starten ───────────────
 export async function POST(req, { params }) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = params;
   const body = await req.json().catch(() => ({}));
+
+  // Einzel-Bild-Modus: imageId angegeben → synchron, gibt Ergebnis zurück
+  if (body.imageId) {
+    const { rows: [img] } = await query(
+      `SELECT id, image_url, thumb_url FROM tenant_reference_images WHERE id = $1 AND tenant_id = $2`,
+      [body.imageId, id]
+    );
+    if (!img) return NextResponse.json({ error: "Bild nicht gefunden" }, { status: 404 });
+    try {
+      const result = await analyzeImage(img.thumb_url || img.image_url, img.id);
+      await query(
+        `UPDATE tenant_reference_images
+         SET description = $2, room_type = $3, condition_tag = $4, ai_tags = $5, ai_analyzed = true, categories = $6
+         WHERE id = $1`,
+        [img.id, result.description, result.room_type, result.condition_tag, result.tags || [], result.tags || []]
+      );
+      return NextResponse.json({ ok: true, result });
+    } catch (err) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+  }
+
   const onlyUnanalyzed = body.onlyUnanalyzed !== false; // default: nur neue
 
   const { rows: images } = await query(

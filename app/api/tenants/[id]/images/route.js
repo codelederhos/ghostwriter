@@ -58,6 +58,57 @@ export async function POST(req, { params }) {
       return NextResponse.json({ ok: true });
     }
 
+    case "update_image_meta": {
+      const allowed = ["description", "room_type", "condition_tag", "ai_tags", "property_id", "sequence_group"];
+      const sets = [];
+      const vals = [body.imageId];
+      let i = 2;
+      for (const field of allowed) {
+        if (body[field] !== undefined) {
+          sets.push(`${field} = $${i++}`);
+          vals.push(body[field]);
+        }
+      }
+      if (sets.length === 0) return NextResponse.json({ ok: true });
+      await query(`UPDATE tenant_reference_images SET ${sets.join(", ")} WHERE id = $1`, vals);
+      return NextResponse.json({ ok: true });
+    }
+
+    case "link_images": {
+      // Assign same sequence_group to multiple images
+      const { imageIds, groupId } = body;
+      const group = groupId || crypto.randomUUID();
+      if (imageIds?.length > 0) {
+        await query(
+          `UPDATE tenant_reference_images SET sequence_group = $2 WHERE id = ANY($1::uuid[])`,
+          [imageIds, group]
+        );
+      }
+      return NextResponse.json({ ok: true, group });
+    }
+
+    case "unlink_image": {
+      const { imageId } = body;
+      await query(`UPDATE tenant_reference_images SET sequence_group = NULL WHERE id = $1`, [imageId]);
+      return NextResponse.json({ ok: true });
+    }
+
+    case "bulk_assign": {
+      const { imageIds, propertyId, conditionTag } = body;
+      if (!imageIds?.length) return NextResponse.json({ ok: true });
+      const sets = [];
+      const vals = [imageIds];
+      let i = 2;
+      if (propertyId !== undefined) { sets.push(`property_id = $${i++}`); vals.push(propertyId || null); }
+      if (conditionTag !== undefined) { sets.push(`condition_tag = $${i++}`); vals.push(conditionTag); }
+      if (sets.length === 0) return NextResponse.json({ ok: true });
+      await query(
+        `UPDATE tenant_reference_images SET ${sets.join(", ")} WHERE id = ANY($1::uuid[])`,
+        vals
+      );
+      return NextResponse.json({ ok: true });
+    }
+
     case "delete_image": {
       const { imageId } = body;
       await query("DELETE FROM tenant_reference_images WHERE id = $1 AND tenant_id = $2", [imageId, id]);
