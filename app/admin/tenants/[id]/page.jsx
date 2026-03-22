@@ -81,7 +81,6 @@ export default function TenantDetailPage() {
   const [selectedImages, setSelectedImages] = useState(new Set()); // multi-select
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const confirmDeleteTimerRef = useRef(null);
-  const [hoveredDeleteId, setHoveredDeleteId] = useState(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const bulkDeleteTimerRef = useRef(null);
   const [bulkTagInput, setBulkTagInput] = useState("");
@@ -2210,8 +2209,6 @@ export default function TenantDetailPage() {
                     const condKey = img.condition_tag || "neutral";
                     const hasSequence = !!img.sequence_group;
 
-                    const isDangerHover = hoveredDeleteId === img.id && !isSelected && !isConfirmDelete;
-
                     return (
                       <div
                         key={img.id}
@@ -2220,11 +2217,8 @@ export default function TenantDetailPage() {
                             ? "border-indigo-400 bg-indigo-50/40 shadow-sm"
                             : isConfirmDelete
                             ? "border-red-400 bg-red-100"
-                            : isDangerHover
-                            ? "border-red-400 bg-red-100 shadow-sm"
-                            : "border-border/60 hover:border-border hover:shadow-sm hover:bg-muted/20"
+                            : "border-border/60 hover:border-border hover:shadow-sm hover:bg-muted/20 has-[[data-delete-btn]:hover]:!bg-red-100 has-[[data-delete-btn]:hover]:!border-red-400 has-[[data-delete-btn]:hover]:shadow-sm"
                           }`}
-                        onMouseLeave={() => setHoveredDeleteId(null)}
                         onClick={() => {
                           const realIdx = refImages.post.findIndex(i => i.id === img.id);
                           setSelectedImageIdx(realIdx);
@@ -2311,14 +2305,12 @@ export default function TenantDetailPage() {
                         {/* Delete */}
                         <div className="shrink-0 flex items-center pl-1" onClick={e => e.stopPropagation()}>
                           <button
-                            onMouseEnter={() => setHoveredDeleteId(img.id)}
+                            data-delete-btn
                             onClick={() => triggerDeleteConfirm(img.id)}
                             className={`h-7 rounded-lg text-[11px] font-medium transition-all px-2 flex items-center gap-1
                               ${isConfirmDelete
                                 ? "bg-red-500 text-white opacity-100 animate-pulse"
-                                : isDangerHover
-                                ? "opacity-100 text-red-600 bg-red-200 border border-red-300"
-                                : "opacity-0 group-hover:opacity-100 text-red-500 hover:bg-red-100 border border-transparent hover:border-red-200"
+                                : "opacity-0 group-hover:opacity-100 hover:opacity-100 text-red-500 hover:text-red-700 hover:bg-red-200 border border-transparent hover:border-red-300"
                               }`}
                             title={isConfirmDelete ? "Nochmal klicken zum Bestätigen" : "Bild löschen"}
                           >
