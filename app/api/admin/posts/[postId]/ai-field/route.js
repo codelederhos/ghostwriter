@@ -20,8 +20,8 @@ const FIELD_SPECS = {
     hint: "Schreibe einen Google Business Post Text. Maximal 270 Zeichen (HARTE GRENZE). Kurz, prägnant, lokal relevant, mit Call-to-Action. Nur den Text selbst ausgeben, keine Anführungszeichen.",
   },
   social_text: {
-    targetMin: 300, targetMax: 800,
-    hint: "Schreibe einen Social Media Post (Instagram/Facebook/LinkedIn). 300-800 Zeichen. Emotional, storytelling-orientiert, mit Mehrwert für den Leser. Darf Emojis enthalten. Endet mit einem CTA und ggf. Hashtags. Nur den Text selbst ausgeben, keine Anführungszeichen.",
+    targetMin: 800, targetMax: 1500,
+    hint: "Schreibe einen ausführlichen Social Media Post (Instagram/Facebook/LinkedIn). MINDESTENS 800 Zeichen, gerne bis 1500. Storytelling-orientiert, emotional, informativ. Mehrere Absätze. Darf Emojis enthalten. Endet mit einem klaren CTA und 3-5 relevanten Hashtags. Nur den Text selbst ausgeben, keine Anführungszeichen.",
   },
 };
 
