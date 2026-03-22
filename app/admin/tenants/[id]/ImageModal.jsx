@@ -24,9 +24,13 @@ const PROP_TYPES = [
   { key: "sonstiges",   label: "Sonstiges"   },
 ];
 
-export default function ImageModal({ images, initialIndex, onClose, onUpdate, onDelete, tenantId, properties }) {
+export default function ImageModal({ images, initialIndex, onClose, onUpdate, onDelete, tenantId, properties: propsProp, onPropertyCreate }) {
   const [idx, setIdx] = useState(initialIndex);
   const [fadingOut, setFadingOut] = useState(false);
+  const [localProperties, setLocalProperties] = useState(propsProp || []);
+
+  // Keep localProperties in sync if parent updates
+  useEffect(() => { setLocalProperties(propsProp || []); }, [propsProp]);
 
   // Editable fields (local mirror of current image)
   const [desc, setDesc]           = useState("");
@@ -35,6 +39,13 @@ export default function ImageModal({ images, initialIndex, onClose, onUpdate, on
   const [condition, setCondition] = useState("neutral");
   const [propertyId, setPropertyId] = useState("");
   const [tagInput, setTagInput]   = useState("");
+
+  // Inline "Neues Objekt" form
+  const [showNewProp, setShowNewProp]   = useState(false);
+  const [newPropName, setNewPropName]   = useState("");
+  const [newPropAddr, setNewPropAddr]   = useState("");
+  const [newPropType, setNewPropType]   = useState("haus");
+  const [newPropSaving, setNewPropSaving] = useState(false);
 
   // UI state
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
@@ -58,6 +69,7 @@ export default function ImageModal({ images, initialIndex, onClose, onUpdate, on
     setPropertyId(img.property_id || "");
     setDeleteStep(0);
     setShowSequencePicker(false);
+    setShowNewProp(false);
     setSeqSelection(new Set());
     setSaveStatus(null);
     if (deleteTimer) { clearTimeout(deleteTimer); setDeleteTimer(null); }
@@ -198,18 +210,39 @@ export default function ImageModal({ images, initialIndex, onClose, onUpdate, on
     onUpdate(img.id, { sequence_group: null });
   }
 
+  async function createProperty() {
+    if (!newPropName.trim()) return;
+    setNewPropSaving(true);
+    const res = await fetch(`/api/tenants/${tenantId}/properties`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "create", name: newPropName.trim(), address: newPropAddr.trim() || null, type: newPropType }),
+    });
+    const data = await res.json();
+    if (data.ok && data.property) {
+      const p = { ...data.property, image_count: 0 };
+      setLocalProperties(prev => [p, ...prev]);
+      onPropertyCreate?.(p);
+      // Sofort auswählen
+      setPropertyId(p.id);
+      await save("property_id", p.id);
+      setNewPropName(""); setNewPropAddr(""); setNewPropType("haus"); setShowNewProp(false);
+    }
+    setNewPropSaving(false);
+  }
+
   if (!img) return null;
 
   const linkedImages = img.sequence_group
     ? images.filter(i => i.sequence_group === img.sequence_group && i.id !== img.id)
     : [];
-  const currentProp = properties.find(p => p.id === propertyId);
+  const currentProp = localProperties.find(p => p.id === propertyId);
   const condObj = CONDITIONS.find(c => c.key === condition) || CONDITIONS[3];
 
   const modal = (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6"
-      style={{ backgroundColor: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+      style={{ backgroundColor: "rgba(0,0,0,0.82)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
@@ -358,8 +391,8 @@ export default function ImageModal({ images, initialIndex, onClose, onUpdate, on
               <section>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Beschreibung</p>
                 <textarea
-                  className="w-full text-sm rounded-lg border border-border bg-muted/30 px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400 transition-all"
-                  rows={3}
+                  className="w-full text-sm rounded-lg border border-border bg-muted/30 px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400/40 focus:border-indigo-400 transition-all"
+                  rows={5}
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
                   onBlur={() => { if (desc !== (img.description || "")) save("description", desc); }}
@@ -402,39 +435,90 @@ export default function ImageModal({ images, initialIndex, onClose, onUpdate, on
 
               {/* Objekt / Standort */}
               <section>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Objekt / Standort</p>
-                {properties.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/60">Noch keine Objekte angelegt — im Bilder-Tab erstellen.</p>
-                ) : (
-                  <div className="space-y-1">
-                    <button
-                      onClick={() => setPropertyAndSave("")}
-                      className={`w-full text-left text-xs px-3 py-2 rounded-lg border transition-all ${
-                        !propertyId ? "border-indigo-400 bg-indigo-50 text-indigo-700 font-medium" : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                      }`}
-                    >
-                      Kein Objekt
-                    </button>
-                    {properties.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => setPropertyAndSave(p.id)}
-                        className={`w-full text-left text-xs px-3 py-2 rounded-lg border transition-all flex items-center justify-between gap-2 ${
-                          propertyId === p.id
-                            ? "border-indigo-400 bg-indigo-50 text-indigo-700 font-medium"
-                            : "border-border text-muted-foreground hover:border-muted-foreground/40"
-                        }`}
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Objekt / Standort</p>
+                  <button
+                    onClick={() => setShowNewProp(v => !v)}
+                    className="flex items-center gap-0.5 text-[11px] text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
+                    title="Neues Objekt direkt hier anlegen"
+                  >
+                    <Plus size={13} /> Neu
+                  </button>
+                </div>
+
+                {/* Inline "Neues Objekt anlegen" */}
+                {showNewProp && (
+                  <div className="mb-2 p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2">
+                    <input
+                      autoFocus
+                      className="w-full text-xs rounded-lg border border-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 bg-white transition-all"
+                      placeholder="Name (z.B. Schillerstr. 12)"
+                      value={newPropName}
+                      onChange={(e) => setNewPropName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") createProperty(); if (e.key === "Escape") setShowNewProp(false); }}
+                    />
+                    <input
+                      className="w-full text-xs rounded-lg border border-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 bg-white transition-all"
+                      placeholder="Adresse (optional)"
+                      value={newPropAddr}
+                      onChange={(e) => setNewPropAddr(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") createProperty(); }}
+                    />
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 text-xs rounded-lg border border-border px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                        value={newPropType}
+                        onChange={(e) => setNewPropType(e.target.value)}
                       >
-                        <span className="truncate">{p.name}</span>
-                        {p.address && (
-                          <span className="shrink-0 flex items-center gap-0.5 text-[10px] opacity-60">
-                            <MapPin size={9} />{p.address.split(",")[0]}
-                          </span>
-                        )}
+                        {[["haus","Haus"],["wohnung","Wohnung"],["gewerbe","Gewerbe"],["grundstueck","Grundstück"],["sonstiges","Sonstiges"]].map(([k,l]) => (
+                          <option key={k} value={k}>{l}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={createProperty}
+                        disabled={!newPropName.trim() || newPropSaving}
+                        className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                      >
+                        {newPropSaving ? "…" : "Anlegen"}
                       </button>
-                    ))}
+                      <button onClick={() => setShowNewProp(false)} className="px-2 py-1.5 text-xs rounded-lg border border-border hover:bg-muted transition-colors">
+                        <X size={12} />
+                      </button>
+                    </div>
                   </div>
                 )}
+
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setPropertyAndSave("")}
+                    className={`w-full text-left text-xs px-3 py-2 rounded-lg border transition-all ${
+                      !propertyId ? "border-indigo-400 bg-indigo-50 text-indigo-700 font-medium" : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                    }`}
+                  >
+                    Kein Objekt
+                  </button>
+                  {localProperties.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setPropertyAndSave(p.id)}
+                      className={`w-full text-left text-xs px-3 py-2 rounded-lg border transition-all flex items-center justify-between gap-2 ${
+                        propertyId === p.id
+                          ? "border-indigo-400 bg-indigo-50 text-indigo-700 font-medium"
+                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <span className="truncate">{p.name}</span>
+                      {p.address && (
+                        <span className="shrink-0 flex items-center gap-0.5 text-[10px] opacity-60">
+                          <MapPin size={9} />{p.address.split(",")[0]}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                  {localProperties.length === 0 && !showNewProp && (
+                    <p className="text-[11px] text-muted-foreground/50 px-1">Noch keine Objekte — oben "Neu" klicken.</p>
+                  )}
+                </div>
                 {currentProp?.address && (
                   <a
                     href={`https://maps.google.com/?q=${encodeURIComponent(currentProp.address)}`}

@@ -2259,6 +2259,7 @@ export default function TenantDetailPage() {
           onClose={() => setSelectedImageIdx(null)}
           onUpdate={handleImageUpdate}
           onDelete={handleImageDelete}
+          onPropertyCreate={(p) => setProperties(prev => [p, ...prev])}
         />
       )}
 
