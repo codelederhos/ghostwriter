@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
-import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer, Download, Copy, Check, MapPin, Building2, Home, ChevronLeft, ExternalLink } from "lucide-react";
+import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer, Download, Copy, Check, MapPin, Building2, Home, ChevronLeft, ExternalLink, Sparkles } from "lucide-react";
 import ImageModal from "./ImageModal";
 import AddressAutocomplete from "./AddressAutocomplete";
 import Link from "next/link";
@@ -3510,41 +3510,189 @@ function SliderCount({ value }) {
   return <>{display === 1 ? "Jeden Tag" : `Alle ${display} Tage`}</>;
 }
 
-function SeoField({ label, value, max, mono }) {
-  const [copied, setCopied] = useState(false);
-  const len = (value || "").length;
+function EditableSeoField({ label, value: initialValue, max, targetMin, mono, field, postId, context, multiline, onChange }) {
+  const [draft, setDraft] = useState(initialValue || "");
+  const [saving, setSaving] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiAttempts, setAiAttempts] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const MAX_AI = 3;
+
+  const len = draft.length;
   const over = max && len > max;
+  const nearTarget = targetMin && len >= targetMin && max && len <= max;
+  const statusColor = over ? "bg-red-500" : nearTarget ? "bg-emerald-500" : len > 0 ? "bg-amber-400" : "bg-muted-foreground/30";
+  const counterColor = over ? "text-red-500" : nearTarget ? "text-emerald-600" : len > 0 && max && len > max * 0.85 ? "text-amber-500" : "text-muted-foreground/50";
+
+  async function handleBlur() {
+    if (draft === (initialValue || "") || !field || !postId) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/admin/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, value: draft }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAiOptimize() {
+    if (aiAttempts >= MAX_AI || !field || !postId) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch(`/api/admin/posts/${postId}/ai-field`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, context: { ...context, currentValue: draft } }),
+      });
+      const data = await res.json();
+      if (data.value) {
+        setDraft(data.value);
+        onChange?.(data.value);
+        setAiAttempts(a => a + 1);
+        // auto-save
+        await fetch(`/api/admin/posts/${postId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ field, value: data.value }),
+        });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  const inputClass = `w-full rounded-lg border px-3 py-2 text-sm bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none transition-colors ${over ? "border-red-300 bg-red-50/30 focus:ring-red-200" : nearTarget ? "border-emerald-200" : "border-border"} ${mono ? "font-mono text-xs" : ""}`;
+
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
         <div className="flex items-center gap-2">
-          {max && <span className={`text-[10px] font-mono ${over ? "text-red-500" : len > max * 0.9 ? "text-amber-500" : "text-muted-foreground/60"}`}>{len}/{max}</span>}
-          {value && (
-            <button onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
-              {copied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
-            </button>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${statusColor} transition-colors`} />
+          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {max && <span className={`text-[10px] font-mono transition-colors ${counterColor}`}>{len}/{max}</span>}
+          {saved && <span className="text-[10px] text-emerald-500 font-medium">Gespeichert ✓</span>}
+          {saving && <span className="text-[10px] text-muted-foreground animate-pulse">Speichert…</span>}
+          {field && (
+            aiAttempts >= MAX_AI ? (
+              <a
+                href="mailto:hello@code-lederhos.de?subject=SEO-Optimierung%20Ghostwriter"
+                className="text-[10px] text-blue-500 hover:underline"
+              >
+                Code Lederhos kontaktieren
+              </a>
+            ) : (
+              <button
+                onClick={handleAiOptimize}
+                disabled={aiLoading}
+                className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-50"
+              >
+                {aiLoading ? (
+                  <><span className="inline-block w-2.5 h-2.5 border border-violet-400 border-t-transparent rounded-full animate-spin" /> Optimiert…</>
+                ) : (
+                  <><Sparkles size={9} /> KI{aiAttempts > 0 ? ` (${aiAttempts}/${MAX_AI})` : ""}</>
+                )}
+              </button>
+            )
           )}
         </div>
       </div>
-      <div className={`rounded-lg border px-3 py-2 text-sm bg-muted/30 ${over ? "border-red-200 bg-red-50/30" : "border-border"} ${mono ? "font-mono text-xs" : ""}`}>
-        {value || <span className="text-muted-foreground/40 italic">—</span>}
-      </div>
+      {multiline ? (
+        <textarea
+          rows={3}
+          className={inputClass}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={handleBlur}
+        />
+      ) : (
+        <input
+          type="text"
+          className={inputClass}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={handleBlur}
+          readOnly={!field}
+        />
+      )}
     </div>
   );
 }
 
+function SeoField({ label, value, max, mono }) {
+  return <EditableSeoField label={label} value={value} max={max} mono={mono} />;
+}
+
 function PostPreviewModal({ post, tenantSlug, onClose }) {
   const [tab, setTab] = useState("blog");
-  const qaIssues = Array.isArray(post.qa_issues) ? post.qa_issues : [];
+  const [qaIssues, setQaIssues] = useState(Array.isArray(post.qa_issues) ? post.qa_issues : []);
+  const [liveGbpText, setLiveGbpText] = useState(post.gbp_text || post.blog_title || "");
   const qaScore = post.qa_score;
   const qaColor = qaScore >= 8 ? "text-emerald-600 bg-emerald-50 border-emerald-200"
     : qaScore >= 5 ? "text-amber-600 bg-amber-50 border-amber-200"
     : "text-red-600 bg-red-50 border-red-200";
-
-  const gbpText = post.gbp_text || post.blog_title || "";
   const [copiedGbp, setCopiedGbp] = useState(false);
+
+  const aiContext = { title: post.blog_title, keyword: post.blog_primary_keyword };
+
+  function fieldForIssue(issue) {
+    const lc = issue.toLowerCase();
+    if (lc.includes("gbp")) return "gbp_text";
+    if (lc.includes("title tag") || lc.includes("title-tag")) return "blog_title_tag";
+    if (lc.includes("meta description") || lc.includes("meta-description")) return "blog_meta_description";
+    return null;
+  }
+
+  function QaIssueRow({ issue, index }) {
+    const [fixing, setFixing] = useState(false);
+    const field = fieldForIssue(issue);
+
+    async function handleFix() {
+      if (!field) return;
+      setFixing(true);
+      try {
+        const currentValue = field === "gbp_text" ? liveGbpText : (post[field] || "");
+        const res = await fetch(`/api/admin/posts/${post.id}/ai-field`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ field, context: { ...aiContext, currentValue } }),
+        });
+        const data = await res.json();
+        if (data.value) {
+          await fetch(`/api/admin/posts/${post.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ field, value: data.value }),
+          });
+          if (field === "gbp_text") setLiveGbpText(data.value);
+          setQaIssues(prev => prev.filter((_, i) => i !== index));
+        }
+      } finally {
+        setFixing(false);
+      }
+    }
+
+    return (
+      <div className="flex items-start gap-2 text-xs text-amber-800">
+        <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-amber-200 flex items-center justify-center text-[9px] font-bold">{index + 1}</span>
+        <span className="flex-1">{issue}</span>
+        {field && (
+          <button onClick={handleFix} disabled={fixing}
+            className="shrink-0 flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 disabled:opacity-50 transition-colors">
+            {fixing ? <span className="inline-block w-2 h-2 border border-violet-400 border-t-transparent rounded-full animate-spin" /> : <><Sparkles size={8} /> KI</>}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[9998] flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
@@ -3597,18 +3745,15 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
         {/* Tab: SEO */}
         {tab === "seo" && (
           <div className="p-6 space-y-4">
-            <SeoField label="Title Tag (Suchtreffer-Titel)" value={post.blog_title_tag} max={60} />
-            <SeoField label="Meta Description" value={post.blog_meta_description} max={160} />
-            <SeoField label="Primary Keyword" value={post.blog_primary_keyword} />
-            <SeoField label="URL Slug" value={post.blog_slug} mono />
+            <EditableSeoField label="Title Tag (Suchtreffer-Titel)" value={post.blog_title_tag} max={60} targetMin={50} field="blog_title_tag" postId={post.id} context={aiContext} />
+            <EditableSeoField label="Meta Description" value={post.blog_meta_description} max={160} targetMin={145} multiline field="blog_meta_description" postId={post.id} context={aiContext} />
+            <EditableSeoField label="Primary Keyword" value={post.blog_primary_keyword} />
+            <EditableSeoField label="URL Slug" value={post.blog_slug} mono />
             {qaIssues.length > 0 && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-1.5">
+              <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-2">
                 <p className="text-xs font-semibold text-amber-700 mb-2">QA-Hinweise ({qaIssues.length})</p>
                 {qaIssues.map((issue, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs text-amber-800">
-                    <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-amber-200 flex items-center justify-center text-[9px] font-bold">{i + 1}</span>
-                    <span>{issue}</span>
-                  </div>
+                  <QaIssueRow key={i} issue={issue} index={i} />
                 ))}
               </div>
             )}
@@ -3619,7 +3764,7 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
         {/* Tab: Social Media */}
         {tab === "social" && (() => {
           const blogUrl = `https://ghostwriter.code-lederhos.de/${tenantSlug}/${post.language}/blog/${post.blog_slug}`;
-          const fullText = `${gbpText}\n\n👉 ${blogUrl}`;
+          const fullText = `${liveGbpText}\n\n👉 ${blogUrl}`;
           return (
             <div className="p-6 space-y-5">
               {/* Card Preview */}
@@ -3627,7 +3772,7 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
                 {post.image_url && <img src={post.image_url} alt="" className="w-full object-cover" style={{maxHeight: "260px"}} />}
                 <div className="p-5 space-y-3">
                   <p className="text-base font-bold text-foreground leading-snug">{post.blog_title}</p>
-                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{gbpText}</p>
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{liveGbpText}</p>
                   <a
                     href={blogUrl} target="_blank"
                     className="inline-flex items-center gap-2 mt-1 px-4 py-2 rounded-lg bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
@@ -3637,18 +3782,15 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
                   <p className="text-[11px] text-muted-foreground/50 uppercase tracking-wide pt-1">{blogUrl}</p>
                 </div>
               </div>
-              {/* Copy */}
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">Post-Text inkl. Link</p>
+              {/* Edit + Copy */}
+              <EditableSeoField label="Post-Text (Social Media)" value={post.gbp_text} max={270} targetMin={150} multiline field="gbp_text" postId={post.id} context={aiContext} onChange={setLiveGbpText} />
+              <div className="flex items-center justify-end">
                 <button
                   onClick={() => { navigator.clipboard.writeText(fullText); setCopiedGbp(true); setTimeout(() => setCopiedGbp(false), 1500); }}
                   className="text-xs flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {copiedGbp ? <><Check size={11} className="text-emerald-500" /> Kopiert</> : <><Copy size={11} /> Text + Link kopieren</>}
                 </button>
-              </div>
-              <div className="bg-muted/30 rounded-xl p-4 text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed border border-border">
-                {fullText}
               </div>
             </div>
           );
@@ -3667,7 +3809,7 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
               </div>
               {post.image_url && <img src={post.image_url} alt="" className="w-full object-cover" style={{maxHeight: "180px"}} />}
               <div className="p-3 space-y-2">
-                <p className="text-xs leading-relaxed text-gray-800 whitespace-pre-wrap">{gbpText}</p>
+                <p className="text-xs leading-relaxed text-gray-800 whitespace-pre-wrap">{liveGbpText}</p>
                 {post.blog_slug && (
                   <div className="flex items-center gap-1.5 pt-1">
                     <span className="text-[10px] text-blue-600 font-medium">Mehr erfahren →</span>
@@ -3675,9 +3817,10 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
                 )}
               </div>
             </div>
+            <EditableSeoField label="GBP-Text" value={post.gbp_text} max={270} targetMin={150} multiline field="gbp_text" postId={post.id} context={aiContext} onChange={setLiveGbpText} />
             <div className="flex items-center justify-end">
               <button
-                onClick={() => { navigator.clipboard.writeText(gbpText); setCopiedGbp(true); setTimeout(() => setCopiedGbp(false), 1500); }}
+                onClick={() => { navigator.clipboard.writeText(liveGbpText); setCopiedGbp(true); setTimeout(() => setCopiedGbp(false), 1500); }}
                 className="text-xs flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {copiedGbp ? <><Check size={11} className="text-emerald-500" /> Kopiert</> : <><Copy size={11} /> GBP-Text kopieren</>}

@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+const EDITABLE_FIELDS = ["blog_title_tag", "blog_meta_description", "gbp_text"];
+
 export async function GET(req, { params }) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,4 +23,19 @@ export async function GET(req, { params }) {
 
   if (!rows[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ post: rows[0] });
+}
+
+export async function PATCH(req, { params }) {
+  const session = await requireAdmin();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { postId } = params;
+  const { field, value } = await req.json();
+
+  if (!EDITABLE_FIELDS.includes(field)) {
+    return NextResponse.json({ error: "Field not allowed" }, { status: 400 });
+  }
+
+  await query(`UPDATE ghostwriter_posts SET ${field} = $1 WHERE id = $2`, [value, postId]);
+  return NextResponse.json({ ok: true });
 }
