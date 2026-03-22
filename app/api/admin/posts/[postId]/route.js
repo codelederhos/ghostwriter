@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const EDITABLE_FIELDS = ["blog_title_tag", "blog_meta_description", "gbp_text"];
+const EDITABLE_FIELDS = ["blog_title_tag", "blog_meta_description", "gbp_text", "social_text"];
 
 export async function GET(req, { params }) {
   const session = await requireAdmin();
@@ -12,7 +12,7 @@ export async function GET(req, { params }) {
 
   const { postId } = params;
   const { rows } = await query(
-    `SELECT id, blog_title, blog_slug, blog_body, gbp_text,
+    `SELECT id, blog_title, blog_slug, blog_body, gbp_text, social_text,
             blog_title_tag, blog_meta_description, blog_primary_keyword,
             qa_score, qa_issues,
             language, category, angle, status, is_test,

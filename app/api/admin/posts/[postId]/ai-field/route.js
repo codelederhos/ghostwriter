@@ -17,7 +17,11 @@ const FIELD_SPECS = {
   },
   gbp_text: {
     targetMin: 150, targetMax: 270,
-    hint: "Schreibe einen Google Business Post Text. Maximal 270 Zeichen (HARTE GRENZE). Ansprechend, lokal relevant, mit Call-to-Action. Nur den Text selbst ausgeben, keine Anführungszeichen.",
+    hint: "Schreibe einen Google Business Post Text. Maximal 270 Zeichen (HARTE GRENZE). Kurz, prägnant, lokal relevant, mit Call-to-Action. Nur den Text selbst ausgeben, keine Anführungszeichen.",
+  },
+  social_text: {
+    targetMin: 300, targetMax: 800,
+    hint: "Schreibe einen Social Media Post (Instagram/Facebook/LinkedIn). 300-800 Zeichen. Emotional, storytelling-orientiert, mit Mehrwert für den Leser. Darf Emojis enthalten. Endet mit einem CTA und ggf. Hashtags. Nur den Text selbst ausgeben, keine Anführungszeichen.",
   },
 };
 

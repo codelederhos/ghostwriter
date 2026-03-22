@@ -3636,6 +3636,7 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
   const [tab, setTab] = useState("blog");
   const [qaIssues, setQaIssues] = useState(Array.isArray(post.qa_issues) ? post.qa_issues : []);
   const [liveGbpText, setLiveGbpText] = useState(post.gbp_text || post.blog_title || "");
+  const [liveSocialText, setLiveSocialText] = useState(post.social_text || post.gbp_text || post.blog_title || "");
   const qaScore = post.qa_score;
   const qaColor = qaScore >= 8 ? "text-emerald-600 bg-emerald-50 border-emerald-200"
     : qaScore >= 5 ? "text-amber-600 bg-amber-50 border-amber-200"
@@ -3765,7 +3766,7 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
         {/* Tab: Social Media */}
         {tab === "social" && (() => {
           const blogUrl = `https://ghostwriter.code-lederhos.de/${tenantSlug}/${post.language}/blog/${post.blog_slug}`;
-          const fullText = `${liveGbpText}\n\n👉 ${blogUrl}`;
+          const fullText = `${liveSocialText}\n\n👉 ${blogUrl}`;
           return (
             <div className="p-6 space-y-5">
               {/* Card Preview */}
@@ -3773,7 +3774,7 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
                 {post.image_url && <img src={post.image_url} alt="" className="w-full object-cover" style={{maxHeight: "260px"}} />}
                 <div className="p-5 space-y-3">
                   <p className="text-base font-bold text-foreground leading-snug">{post.blog_title}</p>
-                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{liveGbpText}</p>
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{liveSocialText}</p>
                   <a
                     href={blogUrl} target="_blank"
                     className="inline-flex items-center gap-2 mt-1 px-4 py-2 rounded-lg bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
@@ -3784,7 +3785,7 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
                 </div>
               </div>
               {/* Edit + Copy */}
-              <EditableSeoField label="Post-Text (Social Media)" value={post.gbp_text} max={2200} multiline field="gbp_text" postId={post.id} context={aiContext} onChange={setLiveGbpText} />
+              <EditableSeoField label="Post-Text (Social Media)" value={post.social_text || post.gbp_text} max={2200} targetMin={300} multiline field="social_text" postId={post.id} context={aiContext} onChange={setLiveSocialText} />
               <div className="flex items-center justify-end">
                 <button
                   onClick={() => { navigator.clipboard.writeText(fullText); setCopiedGbp(true); setTimeout(() => setCopiedGbp(false), 1500); }}
