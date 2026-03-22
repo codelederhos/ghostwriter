@@ -81,6 +81,7 @@ export default function TenantDetailPage() {
   const [selectedImages, setSelectedImages] = useState(new Set()); // multi-select
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const confirmDeleteTimerRef = useRef(null);
+  const [hoveredDeleteId, setHoveredDeleteId] = useState(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const bulkDeleteTimerRef = useRef(null);
   const [bulkTagInput, setBulkTagInput] = useState("");
@@ -2212,12 +2213,14 @@ export default function TenantDetailPage() {
                     return (
                       <div
                         key={img.id}
-                        className={`flex gap-2.5 p-2 rounded-xl border transition-all duration-200 group cursor-pointer
+                        className={`flex gap-2.5 p-2 rounded-xl border transition-all duration-200 cursor-pointer
                           ${isSelected
                             ? "border-indigo-400 bg-indigo-50/40 shadow-sm"
                             : isConfirmDelete
                             ? "border-red-400 bg-red-100"
-                            : "border-border/60 hover:border-border hover:shadow-sm hover:bg-muted/20 has-[[data-delete-btn]:hover]:!bg-red-100 has-[[data-delete-btn]:hover]:!border-red-400 has-[[data-delete-btn]:hover]:shadow-sm"
+                            : hoveredDeleteId === img.id
+                            ? "bg-red-50 border-red-200 ring-1 ring-red-200"
+                            : "border-border/60 hover:border-border hover:shadow-sm hover:bg-muted/20"
                           }`}
                         onClick={() => {
                           const realIdx = refImages.post.findIndex(i => i.id === img.id);
@@ -2305,17 +2308,13 @@ export default function TenantDetailPage() {
                         {/* Delete */}
                         <div className="shrink-0 flex items-center pl-1" onClick={e => e.stopPropagation()}>
                           <button
-                            data-delete-btn
+                            onMouseEnter={() => setHoveredDeleteId(img.id)}
+                            onMouseLeave={() => setHoveredDeleteId(null)}
                             onClick={() => triggerDeleteConfirm(img.id)}
-                            className={`h-7 rounded-lg text-[11px] font-medium transition-all px-2 flex items-center gap-1
-                              ${isConfirmDelete
-                                ? "bg-red-500 text-white opacity-100 animate-pulse"
-                                : "opacity-0 group-hover:opacity-100 hover:opacity-100 text-red-500 hover:text-red-700 hover:bg-red-200 border border-transparent hover:border-red-300"
-                              }`}
+                            className={`dw-icon-btn-destructive ${isConfirmDelete ? "!bg-red-500 !text-white !border-red-400 animate-pulse" : ""}`}
                             title={isConfirmDelete ? "Nochmal klicken zum Bestätigen" : "Bild löschen"}
                           >
-                            <Trash2 size={11} />
-                            {isConfirmDelete && "Sicher?"}
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </div>
