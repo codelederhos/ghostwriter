@@ -3617,30 +3617,42 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
         )}
 
         {/* Tab: Social Media */}
-        {tab === "social" && (
-          <div className="p-6 space-y-4">
-            <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
-              {post.image_url && <img src={post.image_url} alt="" className="w-full object-cover" style={{maxHeight: "220px"}} />}
-              <div className="p-4 space-y-2">
-                <p className="text-sm font-semibold text-foreground leading-snug">{post.blog_title}</p>
-                <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{gbpText}</p>
-                <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide">{tenantSlug}.de</p>
+        {tab === "social" && (() => {
+          const blogUrl = `https://ghostwriter.code-lederhos.de/${tenantSlug}/${post.language}/blog/${post.blog_slug}`;
+          const fullText = `${gbpText}\n\n👉 ${blogUrl}`;
+          return (
+            <div className="p-6 space-y-5">
+              {/* Card Preview */}
+              <div className="rounded-2xl border border-border bg-white shadow-md overflow-hidden max-w-lg mx-auto">
+                {post.image_url && <img src={post.image_url} alt="" className="w-full object-cover" style={{maxHeight: "260px"}} />}
+                <div className="p-5 space-y-3">
+                  <p className="text-base font-bold text-foreground leading-snug">{post.blog_title}</p>
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{gbpText}</p>
+                  <a
+                    href={blogUrl} target="_blank"
+                    className="inline-flex items-center gap-2 mt-1 px-4 py-2 rounded-lg bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Mehr erfahren →
+                  </a>
+                  <p className="text-[11px] text-muted-foreground/50 uppercase tracking-wide pt-1">{blogUrl}</p>
+                </div>
+              </div>
+              {/* Copy */}
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">Post-Text inkl. Link</p>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(fullText); setCopiedGbp(true); setTimeout(() => setCopiedGbp(false), 1500); }}
+                  className="text-xs flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {copiedGbp ? <><Check size={11} className="text-emerald-500" /> Kopiert</> : <><Copy size={11} /> Text + Link kopieren</>}
+                </button>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-4 text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed border border-border">
+                {fullText}
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Social Media Post Text</p>
-              <button
-                onClick={() => { navigator.clipboard.writeText(gbpText); setCopiedGbp(true); setTimeout(() => setCopiedGbp(false), 1500); }}
-                className="text-xs flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {copiedGbp ? <><Check size={11} className="text-emerald-500" /> Kopiert</> : <><Copy size={11} /> Text kopieren</>}
-              </button>
-            </div>
-            <div className="bg-muted/30 rounded-xl p-3 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed border border-border">
-              {gbpText}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Tab: Google Business */}
         {tab === "gbp" && (
