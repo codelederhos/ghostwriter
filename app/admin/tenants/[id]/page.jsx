@@ -3784,7 +3784,7 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
                 </div>
               </div>
               {/* Edit + Copy */}
-              <EditableSeoField label="Post-Text (Social Media)" value={post.gbp_text} max={270} targetMin={150} multiline field="gbp_text" postId={post.id} context={aiContext} onChange={setLiveGbpText} />
+              <EditableSeoField label="Post-Text (Social Media)" value={post.gbp_text} max={2200} multiline field="gbp_text" postId={post.id} context={aiContext} onChange={setLiveGbpText} />
               <div className="flex items-center justify-end">
                 <button
                   onClick={() => { navigator.clipboard.writeText(fullText); setCopiedGbp(true); setTimeout(() => setCopiedGbp(false), 1500); }}
