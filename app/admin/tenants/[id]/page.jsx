@@ -3510,25 +3510,62 @@ function SliderCount({ value }) {
   return <>{display === 1 ? "Jeden Tag" : `Alle ${display} Tage`}</>;
 }
 
+function SeoField({ label, value, max, mono }) {
+  const [copied, setCopied] = useState(false);
+  const len = (value || "").length;
+  const over = max && len > max;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
+        <div className="flex items-center gap-2">
+          {max && <span className={`text-[10px] font-mono ${over ? "text-red-500" : len > max * 0.9 ? "text-amber-500" : "text-muted-foreground/60"}`}>{len}/{max}</span>}
+          {value && (
+            <button onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+              {copied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+            </button>
+          )}
+        </div>
+      </div>
+      <div className={`rounded-lg border px-3 py-2 text-sm bg-muted/30 ${over ? "border-red-200 bg-red-50/30" : "border-border"} ${mono ? "font-mono text-xs" : ""}`}>
+        {value || <span className="text-muted-foreground/40 italic">—</span>}
+      </div>
+    </div>
+  );
+}
+
 function PostPreviewModal({ post, tenantSlug, onClose }) {
   const [tab, setTab] = useState("blog");
+  const qaIssues = Array.isArray(post.qa_issues) ? post.qa_issues : [];
+  const qaScore = post.qa_score;
+  const qaColor = qaScore >= 8 ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+    : qaScore >= 5 ? "text-amber-600 bg-amber-50 border-amber-200"
+    : "text-red-600 bg-red-50 border-red-200";
+
+  const gbpText = post.gbp_text || post.blog_title || "";
+  const [copiedGbp, setCopiedGbp] = useState(false);
+
   return (
     <div className="fixed inset-0 z-[9998] flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-background rounded-xl shadow-2xl w-full max-w-3xl my-8" onClick={e => e.stopPropagation()}>
+
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-0">
           <div className="flex-1 pr-4">
-            <h2 className="text-lg font-semibold">{post.blog_title}</h2>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <h2 className="text-lg font-semibold leading-snug">{post.blog_title}</h2>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className="text-xs text-muted-foreground">{post.category}</span>
               {post.angle && <span className="text-xs text-muted-foreground">· {post.angle}</span>}
-              <span className={
-                post.status === "published" ? "badge badge-success"
-                : post.status === "exported" ? "badge bg-blue-100 text-blue-700 border-blue-200"
-                : post.status === "failed" ? "badge badge-error"
-                : "badge badge-warning"
-              }>{post.status === "exported" ? "exportiert" : post.status}</span>
+              <span className={post.status === "published" ? "badge badge-success" : post.status === "exported" ? "badge bg-blue-100 text-blue-700 border-blue-200" : post.status === "failed" ? "badge badge-error" : "badge badge-warning"}>
+                {post.status === "exported" ? "exportiert" : post.status}
+              </span>
               {post.is_test && <span className="badge" style={{background:"#ede9fe",color:"#7c3aed"}}>Test</span>}
+              {qaScore != null && (
+                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${qaColor}`}>
+                  QA {qaScore}/10
+                </span>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-2xl leading-none w-8 h-8 flex items-center justify-center">&times;</button>
@@ -3536,37 +3573,105 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
 
         {/* Tabs */}
         <div className="flex gap-0 px-6 mt-4 border-b border-border">
-          {[{ key: "blog", label: "📝 Blog" }, { key: "post", label: "📣 Post / GBP" }].map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-            >{t.label}</button>
+          {[
+            { key: "blog", label: "Blog" },
+            { key: "seo", label: "SEO" },
+            { key: "social", label: "Social Media" },
+            { key: "gbp", label: "Google Business" },
+          ].map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              {t.label}
+            </button>
           ))}
         </div>
 
         {/* Tab: Blog */}
         {tab === "blog" && (
           <>
-            {post.image_url && (
-              <div className="px-6 pt-4">
-                <img src={post.image_url} alt="" className="w-full h-52 object-cover rounded-xl" />
-              </div>
-            )}
+            {post.image_url && <div className="px-6 pt-4"><img src={post.image_url} alt="" className="w-full h-52 object-cover rounded-xl" /></div>}
             <div className="p-6 blog-prose" dangerouslySetInnerHTML={{ __html: post.blog_body || "<p class='text-muted-foreground'>Kein Inhalt</p>" }} />
           </>
         )}
 
-        {/* Tab: Post / GBP */}
-        {tab === "post" && (
+        {/* Tab: SEO */}
+        {tab === "seo" && (
           <div className="p-6 space-y-4">
-            {post.image_url && (
-              <img src={post.image_url} alt="" className="w-full rounded-xl object-cover" style={{maxHeight: "280px"}} />
+            <SeoField label="Title Tag (Suchtreffer-Titel)" value={post.blog_title_tag} max={60} />
+            <SeoField label="Meta Description" value={post.blog_meta_description} max={160} />
+            <SeoField label="Primary Keyword" value={post.blog_primary_keyword} />
+            <SeoField label="URL Slug" value={post.blog_slug} mono />
+            {qaIssues.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-1.5">
+                <p className="text-xs font-semibold text-amber-700 mb-2">QA-Hinweise ({qaIssues.length})</p>
+                {qaIssues.map((issue, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-amber-800">
+                    <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-amber-200 flex items-center justify-center text-[9px] font-bold">{i + 1}</span>
+                    <span>{issue}</span>
+                  </div>
+                ))}
+              </div>
             )}
-            <div className="bg-muted/40 rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap">
-              {post.gbp_text || post.blog_title}
+            <p className="text-[11px] text-muted-foreground/60 text-center">Diese Felder landen im &lt;head&gt; der Seite — nicht im sichtbaren Artikel</p>
+          </div>
+        )}
+
+        {/* Tab: Social Media */}
+        {tab === "social" && (
+          <div className="p-6 space-y-4">
+            <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+              {post.image_url && <img src={post.image_url} alt="" className="w-full object-cover" style={{maxHeight: "220px"}} />}
+              <div className="p-4 space-y-2">
+                <p className="text-sm font-semibold text-foreground leading-snug">{post.blog_title}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{gbpText}</p>
+                <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide">{tenantSlug}.de</p>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground text-center">So sieht es auf Google Business / Social aus</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">Social Media Post Text</p>
+              <button
+                onClick={() => { navigator.clipboard.writeText(gbpText); setCopiedGbp(true); setTimeout(() => setCopiedGbp(false), 1500); }}
+                className="text-xs flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {copiedGbp ? <><Check size={11} className="text-emerald-500" /> Kopiert</> : <><Copy size={11} /> Text kopieren</>}
+              </button>
+            </div>
+            <div className="bg-muted/30 rounded-xl p-3 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed border border-border">
+              {gbpText}
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Google Business */}
+        {tab === "gbp" && (
+          <div className="p-6 space-y-4">
+            <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden max-w-sm mx-auto">
+              <div className="flex items-center gap-2 p-3 border-b border-border">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xs shrink-0">B</div>
+                <div>
+                  <p className="text-xs font-semibold">Baur Immobilien GmbH</p>
+                  <p className="text-[10px] text-muted-foreground">Google Business</p>
+                </div>
+              </div>
+              {post.image_url && <img src={post.image_url} alt="" className="w-full object-cover" style={{maxHeight: "180px"}} />}
+              <div className="p-3 space-y-2">
+                <p className="text-xs leading-relaxed text-gray-800 whitespace-pre-wrap">{gbpText}</p>
+                {post.blog_slug && (
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-blue-600 font-medium">Mehr erfahren →</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-end">
+              <button
+                onClick={() => { navigator.clipboard.writeText(gbpText); setCopiedGbp(true); setTimeout(() => setCopiedGbp(false), 1500); }}
+                className="text-xs flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {copiedGbp ? <><Check size={11} className="text-emerald-500" /> Kopiert</> : <><Copy size={11} /> GBP-Text kopieren</>}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground/60 text-center">Automatisch gepostet bei Veröffentlichung wenn Google Business verbunden</p>
           </div>
         )}
 

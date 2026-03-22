@@ -11,6 +11,8 @@ export async function GET(req, { params }) {
   const { postId } = params;
   const { rows } = await query(
     `SELECT id, blog_title, blog_slug, blog_body, gbp_text,
+            blog_title_tag, blog_meta_description, blog_primary_keyword,
+            qa_score, qa_issues,
             language, category, angle, status, is_test,
             image_url, image_url_2, created_at, published_at
      FROM ghostwriter_posts WHERE id = $1`,
