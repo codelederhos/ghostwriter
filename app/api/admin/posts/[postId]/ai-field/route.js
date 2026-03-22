@@ -6,22 +6,30 @@ import { generateText } from "@/lib/providers/text";
 
 export const dynamic = "force-dynamic";
 
+// HTML-Tags entfernen für sauberen Artikel-Text
+function stripHtml(html) {
+  return (html || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 const FIELD_SPECS = {
   blog_title_tag: {
-    targetMin: 50, targetMax: 60,
-    hint: "Schreibe einen präzisen SEO-Title-Tag. Exakt 50-60 Zeichen. Keyword zuerst. Kein Firmenname am Ende nötig. Nur den Title-Tag selbst ausgeben, keine Anführungszeichen.",
+    hint: "Erstelle einen SEO-Title-Tag basierend auf dem Artikel. Exakt 50-60 Zeichen. Keyword zuerst. Nur den Title-Tag ausgeben, keine Anführungszeichen.",
+    useArticle: false,
   },
   blog_meta_description: {
-    targetMin: 145, targetMax: 160,
-    hint: "Schreibe eine überzeugende Meta Description. Exakt 145-160 Zeichen. Enthält das Keyword natürlich. Endet mit einem CTA-Impuls. Nur die Description selbst ausgeben, keine Anführungszeichen.",
+    hint: "Erstelle eine Meta Description basierend auf dem Artikel. Exakt 145-160 Zeichen. Keyword natürlich eingebaut. Endet mit CTA-Impuls. Nur die Description ausgeben, keine Anführungszeichen.",
+    useArticle: false,
   },
   gbp_text: {
-    targetMin: 150, targetMax: 270,
-    hint: "Schreibe einen Google Business Post Text. Maximal 270 Zeichen (HARTE GRENZE). Kurz, prägnant, lokal relevant, mit Call-to-Action. Nur den Text selbst ausgeben, keine Anführungszeichen.",
+    hint: "Fasse den Artikel als Google Business Post zusammen. Maximal 270 Zeichen (HARTE GRENZE). Prägnant, die wichtigste Aussage des Artikels, mit Call-to-Action. Keine erfundenen Geschichten. Nur den Text ausgeben.",
+    useArticle: true,
   },
   social_text: {
-    targetMin: 800, targetMax: 1500,
-    hint: "Schreibe einen ausführlichen Social Media Post (Instagram/Facebook/LinkedIn). MINDESTENS 800 Zeichen, gerne bis 1500. Storytelling-orientiert, emotional, informativ. Mehrere Absätze. Darf Emojis enthalten. Endet mit einem klaren CTA und 3-5 relevanten Hashtags. Nur den Text selbst ausgeben, keine Anführungszeichen.",
+    hint: "Fasse den Artikel als Social Media Post (Instagram/Facebook/LinkedIn) zusammen. Mindestens 800 Zeichen. Behalte den Stil und die Aussagen des Artikels bei — fasse zusammen, erfinde nichts Neues. Mehrere Absätze, natürlicher Ton. Darf wenige passende Emojis enthalten. Endet mit CTA und 3-5 Hashtags. Nur den Text ausgeben.",
+    useArticle: true,
   },
 };
 
@@ -36,9 +44,11 @@ export async function POST(req, { params }) {
     return NextResponse.json({ error: "Field not supported" }, { status: 400 });
   }
 
-  // Load post + tenant
+  const spec = FIELD_SPECS[field];
+
+  // Load post + tenant (blog_body nur wenn gebraucht)
   const { rows: [post] } = await query(
-    "SELECT tenant_id, blog_title, blog_primary_keyword, language FROM ghostwriter_posts WHERE id = $1",
+    `SELECT tenant_id, blog_title, blog_primary_keyword, language${spec.useArticle ? ", blog_body" : ""} FROM ghostwriter_posts WHERE id = $1`,
     [postId]
   );
   if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
@@ -59,17 +69,21 @@ export async function POST(req, { params }) {
     decrypted.text_provider = "anthropic";
   }
 
-  const spec = FIELD_SPECS[field];
   const lang = post.language === "en" ? "English" : "Deutsch";
-  const title = post.blog_title || "";
-  const keyword = post.blog_primary_keyword || "";
+  const articleText = spec.useArticle
+    ? stripHtml(post.blog_body).slice(0, 4000)
+    : null;
 
-  const systemPrompt = `Du bist ein SEO- und Content-Experte. Sprache: ${lang}. ${spec.hint}`;
-  const userPrompt = `Artikel-Titel: "${title}"
-Primary Keyword: "${keyword}"
-${context?.currentValue ? `Aktueller Wert: "${context.currentValue}"` : ""}
+  const systemPrompt = `Du bist ein Content-Experte. Sprache: ${lang}. ${spec.hint}`;
+  const userPrompt = articleText
+    ? `Artikel-Titel: "${post.blog_title}"
+Primary Keyword: "${post.blog_primary_keyword || ""}"
 
-Optimiere dieses Feld für maximale SEO-Wirkung und Klickrate.`;
+Artikel-Inhalt:
+${articleText}`
+    : `Artikel-Titel: "${post.blog_title}"
+Primary Keyword: "${post.blog_primary_keyword || ""}"
+${context?.currentValue ? `Aktueller Wert: "${context.currentValue}"` : ""}`;
 
   const optimized = await generateText(decrypted, systemPrompt, userPrompt);
   const trimmed = optimized.trim().replace(/^["']|["']$/g, "");
