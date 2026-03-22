@@ -3516,6 +3516,7 @@ function EditableSeoField({ label, value: initialValue, max, targetMin, mono, fi
   const [aiLoading, setAiLoading] = useState(false);
   const [aiAttempts, setAiAttempts] = useState(0);
   const [saved, setSaved] = useState(false);
+  const saveTimerRef = useRef(null);
   const MAX_AI = 3;
 
   const len = draft.length;
@@ -3524,20 +3525,28 @@ function EditableSeoField({ label, value: initialValue, max, targetMin, mono, fi
   const statusColor = over ? "bg-red-500" : nearTarget ? "bg-emerald-500" : len > 0 ? "bg-amber-400" : "bg-muted-foreground/30";
   const counterColor = over ? "text-red-500" : nearTarget ? "text-emerald-600" : len > 0 && max && len > max * 0.85 ? "text-amber-500" : "text-muted-foreground/50";
 
-  async function handleBlur() {
-    if (draft === (initialValue || "") || !field || !postId) return;
+  async function saveValue(val) {
+    if (!field || !postId) return;
     setSaving(true);
     try {
       await fetch(`/api/admin/posts/${postId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ field, value: draft }),
+        body: JSON.stringify({ field, value: val }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleChange(val) {
+    setDraft(val);
+    onChange?.(val);
+    if (!field || !postId) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => saveValue(val), 800);
   }
 
   async function handleAiOptimize() {
@@ -3551,17 +3560,11 @@ function EditableSeoField({ label, value: initialValue, max, targetMin, mono, fi
       });
       const data = await res.json();
       if (data.value) {
+        clearTimeout(saveTimerRef.current);
         setDraft(data.value);
         onChange?.(data.value);
         setAiAttempts(a => a + 1);
-        // auto-save
-        await fetch(`/api/admin/posts/${postId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ field, value: data.value }),
-        });
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+        await saveValue(data.value);
       }
     } finally {
       setAiLoading(false);
@@ -3610,16 +3613,14 @@ function EditableSeoField({ label, value: initialValue, max, targetMin, mono, fi
           rows={3}
           className={inputClass}
           value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onBlur={handleBlur}
+          onChange={e => handleChange(e.target.value)}
         />
       ) : (
         <input
           type="text"
           className={inputClass}
           value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onBlur={handleBlur}
+          onChange={e => handleChange(e.target.value)}
           readOnly={!field}
         />
       )}
