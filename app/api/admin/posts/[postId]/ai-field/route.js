@@ -6,10 +6,14 @@ import { generateText } from "@/lib/providers/text";
 
 export const dynamic = "force-dynamic";
 
-// HTML-Tags entfernen für sauberen Artikel-Text
-function stripHtml(html) {
+// HTML + Markdown entfernen für sauberen Artikel-Text
+function stripForAi(html) {
   return (html || "")
-    .replace(/<[^>]+>/g, " ")
+    .replace(/<[^>]+>/g, " ")            // HTML tags
+    .replace(/\*\*([^*]+)\*\*/g, "$1")   // **bold**
+    .replace(/\*([^*]+)\*/g, "$1")       // *italic*
+    .replace(/^#{1,6}\s+/gm, "")         // ## headings
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [link](url)
     .replace(/\s{2,}/g, " ")
     .trim();
 }
@@ -28,7 +32,7 @@ const FIELD_SPECS = {
     useArticle: true,
   },
   social_text: {
-    hint: "Fasse den Artikel als Social Media Post (Instagram/Facebook/LinkedIn) zusammen. Mindestens 800 Zeichen. Behalte den Stil und die Aussagen des Artikels bei — fasse zusammen, erfinde nichts Neues. Mehrere Absätze, natürlicher Ton. Darf wenige passende Emojis enthalten. Endet mit CTA und 3-5 Hashtags. Nur den Text ausgeben.",
+    hint: "Fasse den Artikel als Social Media Post (Instagram/Facebook/LinkedIn) zusammen. Mindestens 800 Zeichen. Behalte den Stil und die Aussagen des Artikels bei — fasse zusammen, erfinde nichts Neues. Mehrere Absätze, natürlicher Ton. Darf wenige passende Emojis enthalten. Endet mit CTA und 3-5 Hashtags. WICHTIG: Kein Markdown, keine Sterne (**), keine # Überschriften — nur reiner Fließtext.",
     useArticle: true,
   },
 };
@@ -71,7 +75,7 @@ export async function POST(req, { params }) {
 
   const lang = post.language === "en" ? "English" : "Deutsch";
   const articleText = spec.useArticle
-    ? stripHtml(post.blog_body).slice(0, 4000)
+    ? stripForAi(post.blog_body).slice(0, 4000)
     : null;
 
   const systemPrompt = `Du bist ein Content-Experte. Sprache: ${lang}. ${spec.hint}`;

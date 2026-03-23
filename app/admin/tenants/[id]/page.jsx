@@ -3642,8 +3642,21 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
     : qaScore >= 5 ? "text-amber-600 bg-amber-50 border-amber-200"
     : "text-red-600 bg-red-50 border-red-200";
   const [copiedGbp, setCopiedGbp] = useState(false);
+  const [liveImageUrl, setLiveImageUrl] = useState(post.image_url);
+  const [regenImgLoading, setRegenImgLoading] = useState(false);
 
   const aiContext = { title: post.blog_title, keyword: post.blog_primary_keyword };
+
+  async function handleRegenImage() {
+    setRegenImgLoading(true);
+    try {
+      const res = await fetch(`/api/admin/posts/${post.id}/regenerate-image`, { method: "POST" });
+      const data = await res.json();
+      if (data.image_url) setLiveImageUrl(data.image_url);
+    } finally {
+      setRegenImgLoading(false);
+    }
+  }
 
   function fieldForIssue(issue) {
     const lc = issue.toLowerCase();
@@ -3739,7 +3752,18 @@ function PostPreviewModal({ post, tenantSlug, onClose }) {
         {/* Tab: Blog */}
         {tab === "blog" && (
           <>
-            {post.image_url && <div className="px-6 pt-4"><img src={post.image_url} alt="" className="w-full h-52 object-cover rounded-xl" /></div>}
+            <div className="px-6 pt-4 relative group">
+              {liveImageUrl && <img src={liveImageUrl} alt="" className="w-full h-52 object-cover rounded-xl" />}
+              <button
+                onClick={handleRegenImage}
+                disabled={regenImgLoading}
+                className="absolute top-6 right-8 flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-background/90 border border-border shadow text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                {regenImgLoading
+                  ? <><span className="inline-block w-3 h-3 border border-foreground/40 border-t-transparent rounded-full animate-spin" /> Generiert…</>
+                  : <><Sparkles size={11} /> Bild neu</>}
+              </button>
+            </div>
             <div className="p-6 blog-prose" dangerouslySetInnerHTML={{ __html: post.blog_body || "<p class='text-muted-foreground'>Kein Inhalt</p>" }} />
           </>
         )}
