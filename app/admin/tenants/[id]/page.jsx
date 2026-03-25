@@ -886,6 +886,7 @@ export default function TenantDetailPage() {
             <FormField label="Branche" value={profile.industry} onChange={(v) => setProfile({ ...profile, industry: v })} placeholder="Immobilien" />
             <FormField label="Region" value={profile.region} onChange={(v) => setProfile({ ...profile, region: v })} placeholder="Nordhessen" />
             <FormField label="Website" value={profile.website_url} onChange={(v) => setProfile({ ...profile, website_url: v })} placeholder="https://..." />
+            <FormField label="CTA-URL" value={profile.cta_url} onChange={(v) => setProfile({ ...profile, cta_url: v })} placeholder="https://.../bewerben" />
           </div>
           <FormField label="USP" value={profile.usp} onChange={(v) => setProfile({ ...profile, usp: v })} textarea />
           <FormField label="Positionierung" value={profile.positioning} onChange={(v) => setProfile({ ...profile, positioning: v })} textarea />

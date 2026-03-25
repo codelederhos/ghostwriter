@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS tenant_profiles (
   languages TEXT[] DEFAULT ARRAY['de'],
   target_audience TEXT,
   website_url VARCHAR(500),
+  cta_url VARCHAR(500),
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
