@@ -88,6 +88,9 @@ export default function TenantDetailPage() {
   const [showBulkTagInput, setShowBulkTagInput] = useState(false); // "add" | "remove" | false
   const [filterProperty, setFilterProperty] = useState(null); // null = alle
   const [filterCondition, setFilterCondition] = useState(null); // null = alle
+  const [filterApproval, setFilterApproval] = useState(null); // null = alle, "pending", "approved", "rejected"
+  const [filterAI, setFilterAI] = useState(null); // null = alle, "original", "ai"
+  const [viewMode, setViewMode] = useState("grid"); // "grid" | "grouped"
 
   function showMsg(text, type = "success") {
     setMsg(text);
@@ -183,15 +186,6 @@ export default function TenantDetailPage() {
     if (!res.ok) return;
     const data = await res.json();
     setProperties(data.properties || []);
-  }
-
-  function handleImageUpdate(imageId, updates) {
-    setRefImages(prev => ({
-      ...prev,
-      post: prev.post.map(img => img.id === imageId ? { ...img, ...updates } : img),
-    }));
-    // Refresh property counts if property changed
-    if (updates.property_id !== undefined) loadProperties();
   }
 
   function handleImageDelete(imageId) {
@@ -483,6 +477,58 @@ export default function TenantDetailPage() {
       body: JSON.stringify({ action: "start" }),
     });
     setSelectedImages(new Set());
+  }
+
+  async function bulkApprove() {
+    const ids = Array.from(selectedImages);
+    if (!ids.length) return;
+    await fetch(`/api/tenants/${id}/images`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "bulk_approve", imageIds: ids }),
+    });
+    setRefImages(prev => ({
+      ...prev,
+      post: prev.post.map(img => selectedImages.has(img.id) ? { ...img, approval_status: "approved", approved_at: new Date().toISOString() } : img),
+    }));
+    setSelectedImages(new Set());
+  }
+
+  async function bulkReject() {
+    const ids = Array.from(selectedImages);
+    if (!ids.length) return;
+    await fetch(`/api/tenants/${id}/images`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "bulk_reject", imageIds: ids }),
+    });
+    setRefImages(prev => ({
+      ...prev,
+      post: prev.post.map(img => selectedImages.has(img.id) ? { ...img, approval_status: "rejected" } : img),
+    }));
+    setSelectedImages(new Set());
+  }
+
+  async function quickApprove(imageId) {
+    await fetch(`/api/tenants/${id}/images`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "approve", imageId }),
+    });
+    setRefImages(prev => ({
+      ...prev,
+      post: prev.post.map(img => img.id === imageId ? { ...img, approval_status: "approved", approved_at: new Date().toISOString() } : img),
+    }));
+  }
+
+  function handleImageUpdate(imageId, updates) {
+    setRefImages(prev => ({
+      ...prev,
+      post: prev.post.map(img => img.id === imageId ? { ...img, ...updates } : img),
+    }));
+    if (updates.property_id !== undefined) loadProperties();
+    // Wenn ein neues KI-Bild erstellt wurde, refetch alle
+    if (updates._newImage) loadRefImages();
   }
 
   async function bulkAddTag(tag) {
@@ -807,7 +853,7 @@ export default function TenantDetailPage() {
     { key: "billing", label: "Kosten", pill: openEuro, pillColor: "amber" },
     { key: "ctas", label: "CTAs" },
     { key: "topics", label: "Themen", pill: topicsCombos > 0 ? `${topicsCombos}` : null, pillColor: "emerald" },
-    { key: "images", label: "Bilder", pill: refImages.post.length > 0 ? `${refImages.post.length}` : googleStatus?.syncStatus === "running" ? "⟳" : null, pillColor: "emerald" },
+    { key: "images", label: "Media Hub", pill: refImages.post.filter(i => i.approval_status === "pending").length > 0 ? `${refImages.post.filter(i => i.approval_status === "pending").length} ⏳` : refImages.post.length > 0 ? `${refImages.post.length}` : googleStatus?.syncStatus === "running" ? "⟳" : null, pillColor: refImages.post.some(i => i.approval_status === "pending") ? "amber" : "emerald" },
     { key: "posts", label: "Posts", pill: tenantPosts !== null ? `${tenantPosts.length}` : null, pillColor: "default" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
@@ -1922,62 +1968,59 @@ export default function TenantDetailPage() {
             <button onClick={saveProfile} className="btn-primary mt-3" disabled={saving}><Save size={14} /> Persona speichern</button>
           </div>
 
-          {/* Post-Bilder */}
+          {/* Media Hub — Post-Bilder */}
           <div className="admin-card">
-            <div className="flex items-start justify-between gap-4 mb-1">
+            <div className="flex items-start justify-between gap-4 mb-3">
               <div>
-                <h3 className="font-semibold">Post-Referenzbilder</h3>
+                <h3 className="font-semibold">Referenzbilder</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Eigene Fotos hochladen — passt das Bild zum Artikel, wird es direkt genutzt (kein KI-Generate). Kein passendes Bild: KI generiert neu.
+                  Eigene Fotos hochladen oder KI-Varianten erstellen. Nur freigegebene Bilder werden für Artikel genutzt.
                 </p>
               </div>
-              {refImages.post.length > 0 && (
-                <button
-                  className={`shrink-0 text-sm px-3 py-1.5 rounded-lg font-medium transition-all ${
-                    visionStatus === "running"
-                      ? "bg-violet-100 text-violet-700 cursor-not-allowed"
-                      : "bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100"
-                  }`}
-                  disabled={visionStatus === "running"}
-                  onClick={async () => {
-                    const res = await fetch(`/api/tenants/${id}/images/analyze`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ onlyUnanalyzed: true }) });
-                    const data = await res.json();
-                    if (data.ok && data.total > 0) {
-                      setVisionStatus("running");
-                      setVisionAnalyzed(0);
-                      setVisionTotal(data.total);
-                    } else if (data.total === 0) {
-                      showMsg("Alle Bilder bereits analysiert ✓");
-                    } else {
-                      showMsg("Analyse fehlgeschlagen", "error");
-                    }
-                  }}
-                >
-                  {visionStatus === "running" ? (
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-                      {visionAnalyzed}/{visionTotal || "…"}
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1.5">
-                      ✨ Auto-beschreiben
-                      {visionTotal > 0 && visionAnalyzed < visionTotal && (
-                        <span className="text-[10px] bg-violet-200 text-violet-800 rounded-full px-1.5">{visionTotal - visionAnalyzed}</span>
-                      )}
-                    </span>
-                  )}
-                </button>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {refImages.post.length > 0 && (
+                  <button
+                    className={`text-sm px-3 py-1.5 rounded-lg font-medium transition-all ${
+                      visionStatus === "running"
+                        ? "bg-violet-100 text-violet-700 cursor-not-allowed"
+                        : "bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100"
+                    }`}
+                    disabled={visionStatus === "running"}
+                    onClick={async () => {
+                      const res = await fetch(`/api/tenants/${id}/images/analyze`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ onlyUnanalyzed: true }) });
+                      const data = await res.json();
+                      if (data.ok && data.total > 0) {
+                        setVisionStatus("running");
+                        setVisionAnalyzed(0);
+                        setVisionTotal(data.total);
+                      } else if (data.total === 0) {
+                        showMsg("Alle Bilder bereits analysiert ✓");
+                      } else {
+                        showMsg("Analyse fehlgeschlagen", "error");
+                      }
+                    }}
+                  >
+                    {visionStatus === "running" ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                        {visionAnalyzed}/{visionTotal || "…"}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        ✨ Auto-beschreiben
+                      </span>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Vision-Analyse Fortschritt */}
             {visionStatus === "running" && visionTotal > 0 && (
               <div className="space-y-1 mb-3">
                 <div className="h-1 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-violet-500 rounded-full transition-all duration-700"
-                    style={{ width: `${Math.round((visionAnalyzed / visionTotal) * 100)}%` }}
-                  />
+                  <div className="h-full bg-violet-500 rounded-full transition-all duration-700"
+                    style={{ width: `${Math.round((visionAnalyzed / visionTotal) * 100)}%` }} />
                 </div>
                 <p className="text-xs text-muted-foreground text-right">{Math.round((visionAnalyzed / visionTotal) * 100)}% · KI analysiert Bilder…</p>
               </div>
@@ -1985,6 +2028,55 @@ export default function TenantDetailPage() {
             {visionStatus === "done" && (
               <div className="mb-3 text-xs text-emerald-700 font-medium flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {visionAnalyzed} Bilder automatisch beschrieben ✓
+              </div>
+            )}
+
+            {/* ── Approval Filter-Bar ─────────────────────────────── */}
+            {refImages.post.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                {[
+                  { key: null, label: "Alle", count: refImages.post.length },
+                  { key: "pending", label: "⏳ Ausstehend", count: refImages.post.filter(i => i.approval_status === "pending").length, color: "amber" },
+                  { key: "approved", label: "✅ Freigegeben", count: refImages.post.filter(i => i.approval_status === "approved").length, color: "emerald" },
+                  { key: "rejected", label: "❌ Abgelehnt", count: refImages.post.filter(i => i.approval_status === "rejected").length, color: "red" },
+                ].map(f => {
+                  if (f.key && f.count === 0) return null;
+                  const active = filterApproval === f.key;
+                  return (
+                    <button key={String(f.key)}
+                      onClick={() => setFilterApproval(active ? null : f.key)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-all font-medium ${
+                        active
+                          ? f.color === "amber" ? "bg-amber-100 text-amber-800 border-amber-300"
+                          : f.color === "emerald" ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                          : f.color === "red" ? "bg-red-100 text-red-800 border-red-300"
+                          : "bg-foreground text-background border-foreground"
+                          : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                      }`}>
+                      {f.label} {f.count > 0 && <span className="opacity-60 ml-0.5">{f.count}</span>}
+                    </button>
+                  );
+                })}
+                <div className="w-px h-4 bg-border mx-1" />
+                {[
+                  { key: null, label: "Alle Typen" },
+                  { key: "original", label: "📷 Originale" },
+                  { key: "ai", label: "🤖 KI-generiert" },
+                ].map(f => {
+                  const active = filterAI === f.key;
+                  const count = f.key === "ai" ? refImages.post.filter(i => i.is_ai_generated).length
+                    : f.key === "original" ? refImages.post.filter(i => !i.is_ai_generated).length : null;
+                  if (f.key && count === 0) return null;
+                  return (
+                    <button key={String(f.key)}
+                      onClick={() => setFilterAI(active ? null : f.key)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-all ${
+                        active ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                      }`}>
+                      {f.label}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -2134,29 +2226,9 @@ export default function TenantDetailPage() {
               })()}
             </div>
 
-            {/* ── Filter: Zustand ─────────────────────────────────────────── */}
-            {refImages.post.length > 0 && (
-              <div className="flex items-center gap-1.5 mt-3">
-                <span className="text-xs text-muted-foreground shrink-0">Filter:</span>
-                {[null,"vorher","dazwischen","nachher","neutral"].map(key => {
-                  const labels = { null:"Alle", vorher:"Vorher", dazwischen:"Umbau", nachher:"Nachher", neutral:"Neutral" };
-                  const active = filterCondition === key;
-                  return (
-                    <button
-                      key={String(key)}
-                      onClick={() => setFilterCondition(active ? null : key)}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-all ${active ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:border-muted-foreground/40"}`}
-                    >
-                      {labels[key]}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             {/* ── Upload Zone ─────────────────────────────────────────────── */}
             <label
-              className="flex flex-col items-center justify-center py-7 rounded-xl border-2 border-dashed border-border hover:border-emerald-400 hover:bg-emerald-50/30 cursor-pointer transition-all mt-3 mb-1"
+              className="flex flex-col items-center justify-center py-5 rounded-xl border-2 border-dashed border-border hover:border-emerald-400 hover:bg-emerald-50/30 cursor-pointer transition-all mb-3"
               onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-emerald-400", "bg-emerald-50/30"); }}
               onDragLeave={(e) => { e.currentTarget.classList.remove("border-emerald-400", "bg-emerald-50/30"); }}
               onDrop={(e) => {
@@ -2166,9 +2238,9 @@ export default function TenantDetailPage() {
                 if (f && f.type.startsWith("image/")) handlePostImageUpload(f, "", []);
               }}
             >
-              <Plus size={22} className="text-muted-foreground/30 mb-2" />
+              <Plus size={20} className="text-muted-foreground/30 mb-1" />
               <span className="text-sm text-muted-foreground">Bild hierher ziehen oder klicken</span>
-              <span className="text-[10px] text-muted-foreground/50 mt-1">JPG, PNG, WebP · max 25 MB</span>
+              <span className="text-[10px] text-muted-foreground/50 mt-0.5">JPG, PNG, WebP · max 25 MB · Status: Ausstehend</span>
               <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) handlePostImageUpload(f, "", []);
@@ -2182,11 +2254,14 @@ export default function TenantDetailPage() {
               </div>
             )}
 
-            {/* ── Bildliste (neu) ─────────────────────────────────────────── */}
+            {/* ── Bild-Grid (Media Hub) ─────────────────────────────────── */}
             {refImages.post.length > 0 && (() => {
               const filtered = refImages.post.filter(img => {
                 if (filterProperty && img.property_id !== filterProperty) return false;
                 if (filterCondition && (img.condition_tag || "neutral") !== filterCondition) return false;
+                if (filterApproval && img.approval_status !== filterApproval) return false;
+                if (filterAI === "ai" && !img.is_ai_generated) return false;
+                if (filterAI === "original" && img.is_ai_generated) return false;
                 return true;
               });
 
@@ -2197,131 +2272,260 @@ export default function TenantDetailPage() {
                 neutral:    "bg-gray-50 text-gray-500 border-gray-200",
               };
               const COND_LABEL = { vorher:"Vorher", dazwischen:"Umbau", nachher:"Nachher", neutral:"Neutral" };
+              const APPROVAL_BG = {
+                approved: "linear-gradient(135deg, #10b981, #34d399)",
+                pending: "linear-gradient(135deg, #f59e0b, #fbbf24)",
+                rejected: "linear-gradient(135deg, #ef4444, #f87171)",
+              };
+              const APPROVAL_LABEL = { approved: "✅", pending: "⏳", rejected: "❌" };
+
+              // Grouped by property
+              const grouped = {};
+              filtered.forEach(img => {
+                const key = img.property_id || "_none";
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(img);
+              });
 
               return (
-                <div className="space-y-1.5 mt-2">
-                  {filtered.length === 0 && (
-                    <p className="text-xs text-center text-muted-foreground/50 py-6">Keine Bilder mit diesen Filtern.</p>
-                  )}
-                  {filtered.map((img) => {
-                    const prop = properties.find(p => p.id === img.property_id);
-                    const isSelected = selectedImages.has(img.id);
-                    const isConfirmDelete = confirmDeleteId === img.id;
-                    const hasDesc = (img.description?.trim()?.length ?? 0) > 5;
-                    const condKey = img.condition_tag || "neutral";
-                    const hasSequence = !!img.sequence_group;
-
-                    return (
-                      <div
-                        key={img.id}
-                        className={`flex gap-2.5 p-2 rounded-xl border transition-all duration-200 cursor-pointer
-                          ${isSelected
-                            ? "border-indigo-400 bg-indigo-50/40 shadow-sm"
-                            : isConfirmDelete
-                            ? "border-red-400 bg-red-100"
-                            : hoveredDeleteId === img.id
-                            ? "bg-red-50 border-red-200 ring-1 ring-red-200"
-                            : "border-border/60 hover:border-border hover:shadow-sm hover:bg-muted/20"
-                          }`}
-                        onClick={() => {
-                          const realIdx = refImages.post.findIndex(i => i.id === img.id);
-                          setSelectedImageIdx(realIdx);
-                        }}
-                      >
-                        {/* Checkbox (multi-select) */}
-                        <div
-                          className="shrink-0 flex items-center"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedImages(prev => {
-                              const s = new Set(prev);
-                              s.has(img.id) ? s.delete(img.id) : s.add(img.id);
-                              return s;
-                            });
-                          }}
-                        >
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0 mt-0.5
-                            ${isSelected
-                              ? "bg-indigo-600 border-indigo-600"
-                              : "border-border/60 group-hover:border-muted-foreground/40"
-                            }`}
-                          >
-                            {isSelected && <Check size={9} className="text-white" />}
-                          </div>
-                        </div>
-
-                        {/* Thumbnail */}
-                        <div className="relative shrink-0">
-                          <img
-                            src={img.thumb_url || img.image_url}
-                            alt={img.description || ""}
-                            className="w-24 h-16 object-cover rounded-lg"
-                          />
-                          {hasSequence && (
-                            <span className="absolute top-0.5 left-0.5 bg-indigo-600/80 backdrop-blur-sm rounded-full p-0.5" title="Teil einer Sequenz">
-                              <svg width="8" height="8" viewBox="0 0 16 16" fill="white"><path d="M8 1l2.5 4h-1.5v4h-2v-4h-1.5z"/><circle cx="8" cy="14" r="2"/></svg>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-1">
-                            {/* KI-Bereit Badge */}
-                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-medium border ${hasDesc ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-600 border-amber-200"}`}>
-                              <span className={`w-1 h-1 rounded-full ${hasDesc ? "bg-emerald-500" : "bg-amber-400"}`} />
-                              {hasDesc ? "KI bereit" : "fehlt"}
-                            </span>
-                            {/* Raumtyp */}
-                            {img.room_type && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                {img.room_type}
-                              </span>
-                            )}
-                            {/* Zustand */}
-                            {condKey !== "neutral" && (
-                              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium border ${COND_STYLE[condKey] || COND_STYLE.neutral}`}>
-                                {COND_LABEL[condKey]}
-                              </span>
-                            )}
-                            {/* Objekt */}
-                            {prop && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-200 truncate max-w-[100px]">
-                                {prop.name}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate leading-relaxed">
-                            {img.description || <span className="italic opacity-50">Keine Beschreibung</span>}
-                          </p>
-                          {/* Tags */}
-                          {(img.ai_tags?.length > 0) && (
-                            <div className="flex flex-wrap gap-1">
-                              {(img.ai_tags || []).slice(0, 4).map(t => (
-                                <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground/70">
-                                  {t}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Delete */}
-                        <div className="shrink-0 flex items-center pl-1" onClick={e => e.stopPropagation()}>
-                          <button
-                            onMouseEnter={() => setHoveredDeleteId(img.id)}
-                            onMouseLeave={() => setHoveredDeleteId(null)}
-                            onClick={() => triggerDeleteConfirm(img.id)}
-                            className={`dw-icon-btn-destructive ${isConfirmDelete ? "!bg-red-500 !text-white !border-red-400 animate-pulse" : ""}`}
-                            title={isConfirmDelete ? "Nochmal klicken zum Bestätigen" : "Bild löschen"}
-                          >
-                            <Trash2 size={12} />
+                <>
+                  {/* Zustand-Filter + View-Toggle */}
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs text-muted-foreground shrink-0">Zustand:</span>
+                      {[null,"vorher","dazwischen","nachher","neutral"].map(key => {
+                        const labels = { null:"Alle", vorher:"Vorher", dazwischen:"Umbau", nachher:"Nachher", neutral:"Neutral" };
+                        const active = filterCondition === key;
+                        return (
+                          <button key={String(key)} onClick={() => setFilterCondition(active ? null : key)}
+                            className={`text-[11px] px-2.5 py-1 rounded-full border transition-all ${active ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:border-muted-foreground/40"}`}>
+                            {labels[key]}
                           </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button onClick={() => setViewMode("grid")}
+                        className={`text-[11px] px-2 py-1 rounded-l-lg border transition-all ${viewMode === "grid" ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted"}`}
+                        title="Grid">▣</button>
+                      <button onClick={() => setViewMode("grouped")}
+                        className={`text-[11px] px-2 py-1 rounded-r-lg border-r border-y transition-all ${viewMode === "grouped" ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted"}`}
+                        title="Nach Objekt">🏠</button>
+                    </div>
+                  </div>
+
+                  {filtered.length === 0 ? (
+                    <p className="text-xs text-center text-muted-foreground/50 py-8">Keine Bilder mit diesen Filtern.</p>
+                  ) : viewMode === "grid" ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {filtered.map((img, i) => {
+                        const prop = properties.find(p => p.id === img.property_id);
+                        const isSelected = selectedImages.has(img.id);
+                        const condKey = img.condition_tag || "neutral";
+                        const childCount = refImages.post.filter(x => x.parent_image_id === img.id).length;
+                        const parentRef = img.parent_image_id ? refImages.post.find(x => x.id === img.parent_image_id) : null;
+
+                        return (
+                          <div key={img.id}
+                            className={`group relative rounded-xl border overflow-hidden transition-all duration-200 cursor-pointer ${
+                              isSelected
+                                ? "border-indigo-400 ring-2 ring-indigo-200 shadow-md"
+                                : "border-border/60 hover:border-border hover:shadow-lg hover:-translate-y-0.5"
+                            }`}
+                            style={{ animation: `cardFadeUp 400ms cubic-bezier(0.16,1,0.3,1) ${i * 50}ms both` }}
+                            onClick={() => {
+                              const realIdx = refImages.post.findIndex(i => i.id === img.id);
+                              setSelectedImageIdx(realIdx);
+                            }}
+                          >
+                            {/* Bild */}
+                            <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100">
+                              <img src={img.thumb_url || img.image_url} alt={img.description || ""}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+
+                              {/* KI-Badge */}
+                              {img.is_ai_generated && (
+                                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white flex items-center gap-0.5"
+                                  style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}>
+                                  🤖
+                                </span>
+                              )}
+
+                              {/* Approval-Badge */}
+                              <span className="absolute top-2 left-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
+                                style={{ background: APPROVAL_BG[img.approval_status] || APPROVAL_BG.pending }}
+                                title={img.approval_status || "pending"}>
+                                {APPROVAL_LABEL[img.approval_status] || "⏳"}
+                              </span>
+
+                              {/* Varianten-Count */}
+                              {childCount > 0 && (
+                                <span className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white bg-indigo-600/80 backdrop-blur-sm">
+                                  🔗 {childCount}
+                                </span>
+                              )}
+
+                              {/* Hover Quick-Actions */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-2.5 gap-1.5"
+                                onClick={(e) => e.stopPropagation()}>
+                                {img.approval_status !== "approved" && (
+                                  <button onClick={() => quickApprove(img.id)}
+                                    className="px-2 py-1 rounded-lg text-[10px] font-medium bg-emerald-500 text-white hover:bg-emerald-600 transition-colors flex items-center gap-1">
+                                    ✅ Freigeben
+                                  </button>
+                                )}
+                                <button onClick={() => { const realIdx = refImages.post.findIndex(i => i.id === img.id); setSelectedImageIdx(realIdx); }}
+                                  className="px-2 py-1 rounded-lg text-[10px] font-medium bg-white/20 text-white backdrop-blur-sm hover:bg-white/30 transition-colors flex items-center gap-1">
+                                  🤖 KI
+                                </button>
+                                <button onClick={() => triggerDeleteConfirm(img.id)}
+                                  className="px-2 py-1 rounded-lg text-[10px] font-medium bg-red-500/80 text-white hover:bg-red-600 transition-colors">
+                                  🗑
+                                </button>
+                              </div>
+
+                              {/* Checkbox */}
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                style={{ right: img.is_ai_generated ? "2.5rem" : "0.5rem" }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedImages(prev => { const s = new Set(prev); s.has(img.id) ? s.delete(img.id) : s.add(img.id); return s; });
+                                }}>
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                                  isSelected ? "bg-indigo-600 border-indigo-600" : "bg-white/80 border-white/60 backdrop-blur-sm"
+                                }`}>
+                                  {isSelected && <Check size={10} className="text-white" />}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card Footer */}
+                            <div className="p-2 space-y-1">
+                              <div className="flex flex-wrap items-center gap-1">
+                                {img.room_type && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    {img.room_type}
+                                  </span>
+                                )}
+                                {condKey !== "neutral" && (
+                                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium border ${COND_STYLE[condKey]}`}>
+                                    {COND_LABEL[condKey]}
+                                  </span>
+                                )}
+                                {prop && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-purple-50 text-purple-700 border border-purple-200 truncate max-w-[80px]">
+                                    {prop.name}
+                                  </span>
+                                )}
+                              </div>
+                              {parentRef && (
+                                <p className="text-[10px] text-violet-600 truncate flex items-center gap-1">
+                                  ← {parentRef.description?.slice(0, 30) || "Original"}
+                                </p>
+                              )}
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {img.description || <span className="italic opacity-50">Keine Beschreibung</span>}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* ── Objekt-gruppierte Ansicht ──────────────────────── */
+                    <div className="space-y-6">
+                      {Object.entries(grouped)
+                        .sort(([a], [b]) => (a === "_none" ? 1 : b === "_none" ? -1 : 0))
+                        .map(([propId, propImages]) => {
+                          const prop = propId !== "_none" ? properties.find(p => p.id === propId) : null;
+                          const PROP_ICONS = { ort:"📍", haus:"🏢", mfh:"🏠", wohnung:"🚪", zimmer:"🛋️", gewerbe:"🏪", grundstueck:"🌳", sonstiges:"📦" };
+
+                          // Group by parent: originals first, then their KI-children
+                          const originals = propImages.filter(i => !i.parent_image_id);
+                          const getKids = (id) => propImages.filter(i => i.parent_image_id === id);
+
+                          return (
+                            <div key={propId}>
+                              {/* Property Header */}
+                              <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-border">
+                                <span className="text-sm">{prop ? (PROP_ICONS[prop.type] || "📦") : "📂"}</span>
+                                <span className="text-sm font-semibold">{prop?.name || "Ohne Objekt"}</span>
+                                {prop?.address && <span className="text-xs text-muted-foreground truncate">{prop.address}</span>}
+                                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{propImages.length}</span>
+                              </div>
+
+                              {/* Images with connections */}
+                              <div className="space-y-2">
+                                {originals.map(orig => {
+                                  const kids = getKids(orig.id);
+                                  return (
+                                    <div key={orig.id} className="flex items-start gap-2 flex-wrap">
+                                      {/* Original */}
+                                      <div className="relative shrink-0 cursor-pointer group"
+                                        onClick={() => { const ri = refImages.post.findIndex(i => i.id === orig.id); setSelectedImageIdx(ri); }}>
+                                        <img src={orig.thumb_url || orig.image_url}
+                                          className="w-24 h-16 object-cover rounded-lg border-2 border-border group-hover:border-indigo-400 transition-colors" alt="" />
+                                        <span className="absolute top-0.5 left-0.5 text-[8px] font-bold bg-white/80 backdrop-blur-sm px-1 rounded">📷</span>
+                                        <span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px]"
+                                          style={{ background: APPROVAL_BG[orig.approval_status] || APPROVAL_BG.pending }}>
+                                          {APPROVAL_LABEL[orig.approval_status] || "⏳"}
+                                        </span>
+                                      </div>
+
+                                      {/* Connection Arrow + KI-Varianten */}
+                                      {kids.length > 0 && (
+                                        <>
+                                          <div className="flex items-center self-center text-muted-foreground/30 shrink-0">
+                                            <svg width="24" height="12" viewBox="0 0 24 12"><path d="M0 6h18m0 0l-4-4m4 4l-4 4" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
+                                          </div>
+                                          {kids.map(kid => (
+                                            <div key={kid.id} className="relative shrink-0 cursor-pointer group"
+                                              onClick={() => { const ri = refImages.post.findIndex(i => i.id === kid.id); setSelectedImageIdx(ri); }}>
+                                              <img src={kid.thumb_url || kid.image_url}
+                                                className="w-24 h-16 object-cover rounded-lg border-2 border-violet-200 group-hover:border-violet-400 transition-colors" alt="" />
+                                              <span className="absolute top-0.5 left-0.5 text-[8px] font-bold text-white px-1 rounded"
+                                                style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}>🤖</span>
+                                              <span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px]"
+                                                style={{ background: APPROVAL_BG[kid.approval_status] || APPROVAL_BG.pending }}>
+                                                {APPROVAL_LABEL[kid.approval_status] || "⏳"}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </>
+                                      )}
+
+                                      {/* Inline KI-Variante Button wenn keine Kinder */}
+                                      {kids.length === 0 && (
+                                        <button
+                                          onClick={() => { const ri = refImages.post.findIndex(i => i.id === orig.id); setSelectedImageIdx(ri); }}
+                                          className="self-center text-[10px] text-violet-600 hover:text-violet-800 font-medium transition-colors flex items-center gap-1 px-2 py-1 rounded-lg border border-dashed border-violet-200 hover:border-violet-400 hover:bg-violet-50"
+                                        >
+                                          + 🤖 KI-Variante
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Orphan KI-Bilder (parent nicht in diesem Property) */}
+                                {propImages.filter(i => i.parent_image_id && !originals.find(o => o.id === i.parent_image_id)).map(orphan => (
+                                  <div key={orphan.id} className="flex items-start gap-2">
+                                    <div className="relative shrink-0 cursor-pointer group"
+                                      onClick={() => { const ri = refImages.post.findIndex(i => i.id === orphan.id); setSelectedImageIdx(ri); }}>
+                                      <img src={orphan.thumb_url || orphan.image_url}
+                                        className="w-24 h-16 object-cover rounded-lg border-2 border-violet-200 group-hover:border-violet-400 transition-colors" alt="" />
+                                      <span className="absolute top-0.5 left-0.5 text-[8px] font-bold text-white px-1 rounded"
+                                        style={{ background: "linear-gradient(135deg, #8b5cf6, #ec4899)" }}>🤖</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </>
               );
             })()}
           </div>
@@ -2456,6 +2660,25 @@ export default function TenantDetailPage() {
             {/* Divider */}
             <div className="w-px h-5 bg-white/15 mx-0.5" />
 
+            {/* Freigeben */}
+            <button
+              onClick={bulkApprove}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              ✅ Freigeben
+            </button>
+
+            {/* Ablehnen */}
+            <button
+              onClick={bulkReject}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-white/10 text-white/80 hover:bg-red-500 hover:text-white border border-white/15 transition-all whitespace-nowrap flex items-center gap-1"
+            >
+              ❌
+            </button>
+
+            {/* Divider */}
+            <div className="w-px h-5 bg-white/15 mx-0.5" />
+
             {/* Löschen */}
             <button
               onClick={() => {
@@ -2499,7 +2722,7 @@ export default function TenantDetailPage() {
           initialIndex={selectedImageIdx}
           tenantId={id}
           properties={properties}
-          onClose={() => setSelectedImageIdx(null)}
+          onClose={() => { setSelectedImageIdx(null); loadRefImages(); }}
           onUpdate={handleImageUpdate}
           onDelete={handleImageDelete}
           onPropertyCreate={(p) => setProperties(prev => [p, ...prev])}
