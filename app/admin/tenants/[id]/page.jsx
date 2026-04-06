@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { Save, Play, ArrowLeft, Trash2, GripVertical, Plus, ChevronDown, ChevronRight, FlaskConical, Shuffle, X, Timer, Download, Copy, Check, MapPin, Building2, Home, ChevronLeft, ExternalLink, Sparkles } from "lucide-react";
 import ImageModal from "./ImageModal";
+import SeoHub from "./SeoHub";
 import AddressAutocomplete from "./AddressAutocomplete";
 import Link from "next/link";
 import { fmtMs } from "@/lib/utils/format";
@@ -855,6 +856,7 @@ export default function TenantDetailPage() {
     { key: "topics", label: "Themen", pill: topicsCombos > 0 ? `${topicsCombos}` : null, pillColor: "emerald" },
     { key: "images", label: "Media Hub", pill: refImages.post.filter(i => i.approval_status === "pending").length > 0 ? `${refImages.post.filter(i => i.approval_status === "pending").length} ⏳` : refImages.post.length > 0 ? `${refImages.post.length}` : googleStatus?.syncStatus === "running" ? "⟳" : null, pillColor: refImages.post.some(i => i.approval_status === "pending") ? "amber" : "emerald" },
     { key: "posts", label: "Posts", pill: tenantPosts !== null ? `${tenantPosts.length}` : null, pillColor: "default" },
+    { key: "seo", label: "SEO Hub", pillColor: "indigo" },
     { key: "reporting", label: "Reporting" },
     { key: "scheduling", label: "Scheduling" },
     { key: "client", label: "Client-Integration" },
@@ -2727,6 +2729,11 @@ export default function TenantDetailPage() {
           onDelete={handleImageDelete}
           onPropertyCreate={(p) => setProperties(prev => [p, ...prev])}
         />
+      )}
+
+      {/* Tab: SEO Hub */}
+      {tab === "seo" && (
+        <SeoHub tenantId={id} showMsg={showMsg} />
       )}
 
       {/* Tab: Reporting */}
