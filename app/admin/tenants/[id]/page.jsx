@@ -1075,7 +1075,7 @@ export default function TenantDetailPage() {
                 <div className="h-10 bg-muted rounded" />
                 <div className="h-10 bg-muted rounded" />
               </div>
-            ) : billingData.openPosts?.length > 0 ? (
+            ) : (billingData.openPosts?.length > 0 || billingData.openCycles?.length > 0 || billingData.openRegens?.length > 0) ? (
               <>
                 <div className="divide-y divide-border/30">
                   {billingData.openPosts.map((p) => (
