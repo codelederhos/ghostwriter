@@ -532,6 +532,44 @@ export default function SeoHub({ tenantId, showMsg }) {
                   </section>
                 )}
 
+                {/* Generate Button */}
+                <section className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      setDetailLoading(true);
+                      try {
+                        const res = await fetch(`/api/tenants/${tenantId}/seo`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ action: "generate_content", pageId: detailData.page.id }),
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                          showMsg?.("KI-Content generiert ✓");
+                          loadDetail(detailData.page.id); // Reload
+                          loadSeoData(); // Refresh list
+                        } else {
+                          showMsg?.(data.error || "Generierung fehlgeschlagen", "error");
+                        }
+                      } catch (e) {
+                        showMsg?.(e.message, "error");
+                      }
+                      setDetailLoading(false);
+                    }}
+                    className="btn-ai flex-1 py-2 text-sm rounded-lg"
+                  >
+                    <Wand2 size={14} /> KI-Content generieren
+                  </button>
+                  {detailData.page.status === "review" && (
+                    <button
+                      onClick={() => updatePageField(detailData.page.id, "status", "published")}
+                      className="flex-1 py-2 text-sm rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-medium transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 size={14} /> Veröffentlichen
+                    </button>
+                  )}
+                </section>
+
                 {/* Metrics */}
                 {detailData.metrics?.length > 0 && (
                   <section>
