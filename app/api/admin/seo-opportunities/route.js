@@ -30,6 +30,13 @@ async function ensureSchema() {
       matched_asset_title text,
       status text NOT NULL DEFAULT 'open',
       signal_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      content_action text,
+      cannibalization_risk text NOT NULL DEFAULT 'none',
+      reserved_slug_hit boolean NOT NULL DEFAULT false,
+      protected_asset_type text,
+      internal_link_targets jsonb NOT NULL DEFAULT '[]'::jsonb,
+      gap_analysis jsonb NOT NULL DEFAULT '{}'::jsonb,
+      content_gap_checked_at timestamptz,
       first_seen timestamptz NOT NULL DEFAULT now(),
       last_seen timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now(),
@@ -45,6 +52,25 @@ async function ensureSchema() {
       gsc_rows integer NOT NULL DEFAULT 0,
       analytics_pages integer NOT NULL DEFAULT 0,
       opportunities_upserted integer NOT NULL DEFAULT 0,
+      message text
+    );
+    ALTER TABLE seo_signal_opportunities
+      ADD COLUMN IF NOT EXISTS content_action text,
+      ADD COLUMN IF NOT EXISTS cannibalization_risk text NOT NULL DEFAULT 'none',
+      ADD COLUMN IF NOT EXISTS reserved_slug_hit boolean NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS protected_asset_type text,
+      ADD COLUMN IF NOT EXISTS internal_link_targets jsonb NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS gap_analysis jsonb NOT NULL DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS content_gap_checked_at timestamptz;
+    CREATE TABLE IF NOT EXISTS content_gap_engine_runs (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      started_at timestamptz NOT NULL DEFAULT now(),
+      finished_at timestamptz,
+      status text NOT NULL DEFAULT 'running',
+      tenants_checked integer NOT NULL DEFAULT 0,
+      opportunities_checked integer NOT NULL DEFAULT 0,
+      protected_hits integer NOT NULL DEFAULT 0,
+      high_risk_hits integer NOT NULL DEFAULT 0,
       message text
     );
   `);
@@ -70,7 +96,7 @@ export async function GET(req) {
   }
   if (recommendation) {
     params.push(recommendation);
-    where.push(`o.recommendation = $${params.length}`);
+    where.push(`COALESCE(o.content_action, o.recommendation) = $${params.length}`);
   }
   if (status && status !== "all") {
     params.push(status);
@@ -91,7 +117,11 @@ export async function GET(req) {
               o.impressions, o.clicks, o.ctr, o.position,
               o.analytics_visits, o.analytics_unique_visitors, o.analytics_conversions,
               o.priority_score, o.matched_asset_type, o.matched_asset_id, o.matched_asset_title,
-              o.status, o.signal_payload, o.last_seen, o.updated_at
+              o.status, o.signal_payload,
+              COALESCE(o.content_action, o.recommendation) AS content_action,
+              o.cannibalization_risk, o.reserved_slug_hit, o.protected_asset_type,
+              o.internal_link_targets, o.gap_analysis, o.content_gap_checked_at,
+              o.last_seen, o.updated_at
        FROM seo_signal_opportunities o
        JOIN tenants t ON t.id = o.tenant_id
        ${whereSql}
@@ -100,15 +130,17 @@ export async function GET(req) {
       params
     ),
     query(
-      `SELECT recommendation,
+      `SELECT COALESCE(content_action, recommendation) AS recommendation,
               COUNT(*)::int AS count,
               MAX(priority_score)::int AS max_score,
               SUM(impressions)::int AS impressions,
               SUM(clicks)::int AS clicks,
-              SUM(analytics_visits)::int AS analytics_visits
+              SUM(analytics_visits)::int AS analytics_visits,
+              COUNT(*) FILTER (WHERE reserved_slug_hit)::int AS protected_hits,
+              COUNT(*) FILTER (WHERE cannibalization_risk = 'high')::int AS high_risk_hits
        FROM seo_signal_opportunities
        WHERE status = 'open'
-       GROUP BY recommendation
+       GROUP BY COALESCE(content_action, recommendation)
        ORDER BY max_score DESC, count DESC`
     ),
     query(

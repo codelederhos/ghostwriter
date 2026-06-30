@@ -23,6 +23,20 @@ const TYPE_COLORS = {
   ignore_duplicate: "bg-red-50 text-red-700 border-red-200",
 };
 
+const RISK_LABELS = {
+  none: "kein Risiko",
+  low: "gering",
+  medium: "mittel",
+  high: "hoch",
+};
+
+const RISK_COLORS = {
+  none: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  low: "bg-blue-50 text-blue-700 border-blue-200",
+  medium: "bg-amber-50 text-amber-700 border-amber-200",
+  high: "bg-red-50 text-red-700 border-red-200",
+};
+
 function fmtDate(value) {
   if (!value) return "nie";
   return new Date(value).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
@@ -52,8 +66,11 @@ function StatCard({ label, value, sub, icon: Icon }) {
 }
 
 function OpportunityRow({ item, onStatus }) {
-  const label = RECOMMENDATION_LABELS[item.recommendation] || item.recommendation;
-  const tone = TYPE_COLORS[item.recommendation] || TYPE_COLORS.social_only;
+  const action = item.content_action || item.recommendation;
+  const label = RECOMMENDATION_LABELS[action] || action;
+  const tone = TYPE_COLORS[action] || TYPE_COLORS.social_only;
+  const risk = item.cannibalization_risk || "none";
+  const linkTargets = Array.isArray(item.internal_link_targets) ? item.internal_link_targets : [];
   const liveUrl = item.page?.startsWith("/") && item.tenant_slug === "baur-immobilien"
     ? `https://immobilienbaur.de${item.page}`
     : null;
@@ -66,6 +83,8 @@ function OpportunityRow({ item, onStatus }) {
             <Pill tone={tone}>{label}</Pill>
             <Pill>{item.tenant_name}</Pill>
             <Pill>{item.priority_score}/100</Pill>
+            <Pill tone={RISK_COLORS[risk] || RISK_COLORS.none}>Risiko {RISK_LABELS[risk] || risk}</Pill>
+            {item.reserved_slug_hit && <Pill tone="bg-red-50 text-red-700 border-red-200"><ShieldAlert size={13} /> geschützt</Pill>}
           </div>
           <h2 className="text-base font-semibold text-foreground">{item.query || item.topic || item.page}</h2>
           <p className="mt-1 break-all text-sm text-muted-foreground">{item.page}</p>
@@ -108,7 +127,7 @@ function OpportunityRow({ item, onStatus }) {
         </div>
         <div className="rounded-lg bg-muted/30 p-3">
           <p className="text-[11px] uppercase text-muted-foreground">Asset</p>
-          <p className="truncate font-semibold">{item.matched_asset_type || "Lücke"}</p>
+          <p className="truncate font-semibold">{item.protected_asset_type || item.matched_asset_type || "Lücke"}</p>
         </div>
       </div>
 
@@ -116,6 +135,25 @@ function OpportunityRow({ item, onStatus }) {
         <span className="font-medium text-foreground">{item.reason || item.opportunity_type}</span>
         {item.matched_asset_title && <> · {item.matched_asset_title}</>}
       </div>
+
+      {linkTargets.length > 0 && (
+        <div className="mt-3 rounded-lg border border-border bg-white px-3 py-2">
+          <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Interne Linkziele</p>
+          <div className="flex flex-wrap gap-2">
+            {linkTargets.slice(0, 5).map((link) => (
+              <a
+                key={`${link.path}-${link.title}`}
+                href={item.tenant_slug === "baur-immobilien" && link.path?.startsWith("/") ? `https://immobilienbaur.de${link.path}` : link.path}
+                target="_blank"
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-border px-2 py-1 text-xs text-muted-foreground transition-all hover:border-primary/30 hover:text-foreground"
+              >
+                <span className="truncate">{link.title || link.path}</span>
+                <ExternalLink size={12} />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </article>
   );
 }
@@ -149,6 +187,8 @@ export default function SeoOpportunitiesPage() {
       impressions: rows.reduce((sum, row) => sum + (row.impressions || 0), 0),
       visits: rows.reduce((sum, row) => sum + (row.analytics_visits || 0), 0),
       maxScore: rows.reduce((max, row) => Math.max(max, row.priority_score || 0), 0),
+      protectedHits: rows.filter((row) => row.reserved_slug_hit).length,
+      highRisk: rows.filter((row) => row.cannibalization_risk === "high").length,
     };
   }, [data.opportunities]);
 
@@ -182,7 +222,7 @@ export default function SeoOpportunitiesPage() {
         <StatCard label="Geladene Chancen" value={totals.count} sub={`${data.stats?.length || 0} Empfehlungstypen`} icon={Target} />
         <StatCard label="Impressions" value={totals.impressions} sub="GSC Zeitraum aus Sync" icon={TrendingUp} />
         <StatCard label="Analytics Visits" value={totals.visits} sub="pro Zielseite gemappt" icon={BarChart3} />
-        <StatCard label="Max. Priorität" value={totals.maxScore} sub="Score 0 bis 100" icon={ShieldAlert} />
+        <StatCard label="Gap-Risiko" value={totals.highRisk} sub={`${totals.protectedHits} geschützte Treffer`} icon={ShieldAlert} />
       </div>
 
       <div className="admin-card p-4">
@@ -219,7 +259,7 @@ export default function SeoOpportunitiesPage() {
                 className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-left text-sm transition-all hover:border-primary/30 hover:bg-muted/20"
               >
                 <span>{RECOMMENDATION_LABELS[stat.recommendation] || stat.recommendation}</span>
-                <span className="text-muted-foreground">{stat.count} · Score {stat.max_score}</span>
+                <span className="text-muted-foreground">{stat.count} · {stat.protected_hits || 0} geschützt</span>
               </button>
             ))}
           </div>
