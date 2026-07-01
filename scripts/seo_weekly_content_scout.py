@@ -2,14 +2,21 @@
 import argparse
 import json
 import math
+import os
 import re
 import subprocess
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
+import urllib.parse
+import urllib.request
 
 GHOSTWRITER_DB_CONTAINER = "ghostwriter-db-1"
+GHOSTWRITER_APP_CONTAINER = "ghostwriter-app-1"
+GHOSTWRITER_QUICK_GENERATE_URL = "http://127.0.0.1:3200/api/admin/posts/quick-generate"
 TG_SEND = "/root/.codex/scripts/tg-send.sh"
+ROUTES_FILE = "/root/.codex/projects/telegram/routes.json"
+DEFAULT_TOKEN_FILE = "/root/.codex/secrets/telegram_bot_token"
 
 ARTICLE_ACTIONS = {"new_blog_article", "support_article", "new_landing_page"}
 CITY_HINTS = [
@@ -40,6 +47,28 @@ def run(args, input_text=None, timeout=60, check=True):
     if check and result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "command failed").strip())
     return result.stdout.strip()
+
+
+def read_text(path):
+    with open(path, "r", encoding="utf-8") as handle:
+        return handle.read().strip()
+
+
+def telegram_api(token, method, payload, timeout=15):
+    data = urllib.parse.urlencode(payload).encode("utf-8")
+    request = urllib.request.Request(f"https://api.telegram.org/bot{token}/{method}", data=data)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def resolve_project_chat_id(project_key):
+    with open(ROUTES_FILE, "r", encoding="utf-8") as handle:
+        routes = json.load(handle)
+    project = (routes.get("projects") or {}).get(project_key) or {}
+    chat_id = project.get("chat_id")
+    if not chat_id:
+        raise RuntimeError(f"telegram route missing for {project_key}")
+    return str(chat_id)
 
 
 def sql_quote(value):
@@ -172,6 +201,10 @@ def ensure_schema():
           cta_plan jsonb NOT NULL DEFAULT '[]'::jsonb,
           social_package jsonb NOT NULL DEFAULT '{}'::jsonb,
           telegram_sent_at timestamptz,
+          draft_requested_at timestamptz,
+          draft_request_status text,
+          draft_request_error text,
+          draft_response jsonb,
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now(),
           UNIQUE (tenant_id, week_start, slot),
@@ -179,6 +212,10 @@ def ensure_schema():
         );
         CREATE INDEX IF NOT EXISTS seo_weekly_content_candidates_tenant_week_idx
           ON seo_weekly_content_candidates (tenant_id, week_start DESC, slot);
+        ALTER TABLE seo_weekly_content_candidates ADD COLUMN IF NOT EXISTS draft_requested_at timestamptz;
+        ALTER TABLE seo_weekly_content_candidates ADD COLUMN IF NOT EXISTS draft_request_status text;
+        ALTER TABLE seo_weekly_content_candidates ADD COLUMN IF NOT EXISTS draft_request_error text;
+        ALTER TABLE seo_weekly_content_candidates ADD COLUMN IF NOT EXISTS draft_response jsonb;
 
         CREATE TABLE IF NOT EXISTS seo_weekly_content_scout_runs (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -198,13 +235,15 @@ def ensure_schema():
 def get_tenants(tenant_filter=None):
     filter_sql = ""
     if tenant_filter:
-        filter_sql = f"AND (tenants.slug = {sql_quote(tenant_filter)} OR tenant_settings.analytics_tenant_key = {sql_quote(tenant_filter)} OR tenant_settings.project_key = {sql_quote(tenant_filter)})"
+        filter_sql = f"AND (tenants.slug = {sql_quote(tenant_filter)} OR tenant_settings.analytics_tenant_key = {sql_quote(tenant_filter)} OR tenant_settings.project_key = {sql_quote(tenant_filter)} OR tenant_settings.telegram_route_key = {sql_quote(tenant_filter)})"
     return psql_json(
         f"""
         SELECT COALESCE(json_agg(row_to_json(t))::text, '[]')
         FROM (
           SELECT tenants.id::text, tenants.name, tenants.slug, tenants.domain,
                  tenant_settings.project_key,
+                 tenant_settings.telegram_route_key,
+                 tenant_settings.telegram_bot_token_file,
                  tenant_settings.analytics_tenant_key,
                  tenant_settings.gsc_site,
                  tenant_settings.client_api_url
@@ -509,7 +548,21 @@ def insert_candidate(tenant_id, week_start, slot, candidate):
 
 
 def telegram_topic(tenant):
-    return tenant.get("project_key") or tenant.get("analytics_tenant_key") or tenant.get("slug") or "oc"
+    return tenant.get("telegram_route_key") or tenant.get("project_key") or tenant.get("analytics_tenant_key") or tenant.get("slug") or "oc"
+
+
+def send_tenant_telegram(tenant, message):
+    route_key = telegram_topic(tenant)
+    token_file = tenant.get("telegram_bot_token_file") or DEFAULT_TOKEN_FILE
+    token = read_text(token_file)
+    chat_id = resolve_project_chat_id(route_key)
+    response = telegram_api(token, "sendMessage", {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": "true",
+    })
+    return (response.get("result") or {}).get("message_id")
 
 
 def send_telegram_summaries(week_start, dry_run=False):
@@ -558,11 +611,161 @@ def send_telegram_summaries(week_start, dry_run=False):
         lines.append("UI: https://ghostwriter.code-lederhos.de/admin/seo-content-scout")
         message = "\n".join(lines)
         if not dry_run:
-            run([TG_SEND, topic, message, "html"], timeout=25, check=False)
+            try:
+                send_tenant_telegram(tenant, message)
+            except Exception:
+                run([TG_SEND, topic, message, "html"], timeout=25, check=True)
             ids = ",".join(sql_quote(item["id"]) for item in items)
             psql_exec(f"UPDATE seo_weekly_content_candidates SET telegram_sent_at = now(), updated_at = now() WHERE id IN ({ids});")
         sent += 1
     return sent
+
+
+def fetch_draft_candidates(week_start, tenant_filter=None, limit=3):
+    tenant_sql = ""
+    if tenant_filter:
+        tenant_sql = f"""
+          AND (
+            t.slug = {sql_quote(tenant_filter)}
+            OR ts.analytics_tenant_key = {sql_quote(tenant_filter)}
+            OR ts.project_key = {sql_quote(tenant_filter)}
+            OR ts.telegram_route_key = {sql_quote(tenant_filter)}
+          )
+        """
+    return psql_json(
+        f"""
+        SELECT COALESCE(json_agg(row_to_json(t))::text, '[]')
+        FROM (
+          SELECT c.id::text, c.tenant_id::text, c.week_start, c.slot, c.title, c.title_alternatives,
+                 c.content_type, c.recommendation, c.primary_query, c.target_url, c.score, c.reason,
+                 c.existing_asset, c.existing_asset_url, c.cannibalization_risk, c.signal_summary,
+                 c.briefing, c.internal_links, c.cta_plan, c.social_package,
+                 t.name AS tenant_name, t.slug AS tenant_slug
+          FROM seo_weekly_content_candidates c
+          JOIN tenants t ON t.id = c.tenant_id
+          LEFT JOIN tenant_settings ts ON ts.tenant_id = t.id
+          WHERE c.week_start = {sql_quote(week_start)}::date
+            AND c.status = 'brief_ready'
+            AND c.draft_requested_at IS NULL
+            AND c.content_type IN ('new_blog_article', 'support_article', 'new_landing_page')
+            {tenant_sql}
+          ORDER BY c.score DESC, c.slot ASC
+          LIMIT {int(limit)}
+        ) t;
+        """
+    )
+
+
+def ghostwriter_admin_token():
+    env_token = os.environ.get("GHOSTWRITER_ADMIN_TOKEN")
+    if env_token:
+        return env_token.strip()
+    token = run(["docker", "exec", GHOSTWRITER_APP_CONTAINER, "sh", "-lc", "printf %s \"$GHOSTWRITER_ADMIN_TOKEN\""], timeout=10)
+    if not token:
+        raise RuntimeError("GHOSTWRITER_ADMIN_TOKEN missing")
+    return token
+
+
+def brief_text(candidate):
+    briefing = candidate.get("briefing") if isinstance(candidate.get("briefing"), dict) else {}
+    signals = candidate.get("signal_summary") if isinstance(candidate.get("signal_summary"), dict) else {}
+    lines = [
+        f"Titel: {candidate.get('title')}",
+        f"Typ: {candidate.get('recommendation')}",
+        f"Keyword: {candidate.get('primary_query') or '-'}",
+        f"Warum jetzt: {briefing.get('why_now') or signals}",
+        f"Bestehendes Asset: {candidate.get('existing_asset') or candidate.get('target_url') or 'keines'}",
+        f"Abgrenzung: {briefing.get('guardrails') or 'Keine Rechner- oder Landingpage-Themen kopieren.'}",
+        f"Risiko: {candidate.get('cannibalization_risk')}",
+        "CTAs:",
+    ]
+    for cta in candidate.get("cta_plan") or []:
+        lines.append(f"- {cta.get('position')}: {cta.get('label')} -> {cta.get('target')}")
+    lines.append("Interne Links:")
+    for link in candidate.get("internal_links") or []:
+        lines.append(f"- {link}")
+    return "\n".join(lines)
+
+
+def quick_generate(candidate, token):
+    briefing = candidate.get("briefing") if isinstance(candidate.get("briefing"), dict) else {}
+    brief = {
+        **briefing,
+        "candidateId": candidate.get("id"),
+        "source": "seo_weekly_content_scout",
+        "signalSummary": candidate.get("signal_summary") or {},
+        "ctaPlan": candidate.get("cta_plan") or [],
+        "internalLinks": candidate.get("internal_links") or [],
+        "socialPackage": candidate.get("social_package") or {},
+        "existingAsset": candidate.get("existing_asset"),
+        "existingAssetUrl": candidate.get("existing_asset_url"),
+        "cannibalizationRisk": candidate.get("cannibalization_risk"),
+    }
+    payload = {
+        "tenantId": candidate.get("tenant_id"),
+        "title": candidate.get("title"),
+        "primaryKeyword": candidate.get("primary_query") or candidate.get("title"),
+        "briefingText": brief_text(candidate),
+        "brief": brief,
+        "languages": ["de"],
+        "reviewMode": True,
+        "draftOnly": True,
+        "briefId": candidate.get("id"),
+        "recommendation": candidate.get("content_type"),
+        "qaHints": {
+            "cannibalizationRisk": candidate.get("cannibalization_risk"),
+            "existingAsset": candidate.get("existing_asset"),
+            "existingAssetUrl": candidate.get("existing_asset_url"),
+            "publishRequiresApproval": True,
+        },
+    }
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        GHOSTWRITER_QUICK_GENERATE_URL,
+        data=data,
+        headers={
+            "content-type": "application/json",
+            "authorization": f"Bearer {token}",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=35) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def mark_draft_requested(candidate_id, status, response=None, error=None):
+    psql_exec(
+        f"""
+        UPDATE seo_weekly_content_candidates
+        SET draft_requested_at = now(),
+            draft_request_status = {sql_quote(status)},
+            draft_request_error = {sql_quote((error or '')[:900])},
+            draft_response = {sql_quote(json.dumps(response or {}, ensure_ascii=False))}::jsonb,
+            updated_at = now()
+        WHERE id = {sql_quote(candidate_id)}::uuid;
+        """
+    )
+
+
+def generate_drafts(week_start, tenant_filter=None, limit=3, dry_run=False):
+    candidates = fetch_draft_candidates(week_start, tenant_filter=tenant_filter, limit=limit)
+    if dry_run:
+        for candidate in candidates:
+            print(json.dumps({"draft_request": candidate["id"], "title": candidate["title"]}, ensure_ascii=False))
+        return len(candidates)
+    if not candidates:
+        return 0
+    token = ghostwriter_admin_token()
+    requested = 0
+    for candidate in candidates:
+        try:
+            response = quick_generate(candidate, token)
+            mark_draft_requested(candidate["id"], "requested", response=response)
+            requested += 1
+        except Exception as exc:
+            mark_draft_requested(candidate["id"], "failed", error=str(exc))
+            raise
+    return requested
 
 
 def record_run(status, week_start, tenants_checked, created, telegram_messages, message=""):
@@ -584,6 +787,7 @@ def main():
     parser.add_argument("--weekly-budget", type=int, default=3)
     parser.add_argument("--limit", type=int, default=180)
     parser.add_argument("--send-telegram", action="store_true")
+    parser.add_argument("--generate-drafts", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
@@ -627,6 +831,7 @@ def main():
                 remaining -= 1
                 if remaining <= 0:
                     break
+        draft_requests = generate_drafts(week_start, tenant_filter=args.tenant, limit=args.weekly_budget, dry_run=args.dry_run) if args.generate_drafts else 0
         telegram_messages = send_telegram_summaries(week_start, dry_run=args.dry_run) if args.send_telegram else 0
         if not args.dry_run:
             record_run("success", week_start, tenants_checked, created, telegram_messages)
@@ -635,6 +840,7 @@ def main():
             "week_start": week_start,
             "tenants_checked": tenants_checked,
             "candidates_created": created,
+            "draft_requests": draft_requests,
             "telegram_messages": telegram_messages,
         }, ensure_ascii=False))
     except Exception as exc:
