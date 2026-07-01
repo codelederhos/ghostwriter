@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, Settings, FileText, Activity, LogOut, Menu, X, GitBranch, Target, LineChart } from "lucide-react";
+import { LayoutDashboard, Building2, Settings, FileText, Activity, LogOut, Menu, X, GitBranch, Target, LineChart, Newspaper } from "lucide-react";
 
 const links = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/tenants", label: "Tenants", icon: Building2 },
   { href: "/admin/tenant-routing", label: "Routing", icon: GitBranch },
   { href: "/admin/seo-opportunities", label: "Opportunities", icon: Target },
+  { href: "/admin/seo-content-scout", label: "Content Scout", icon: Newspaper },
   { href: "/admin/seo-feedback", label: "Feedback", icon: LineChart },
   { href: "/admin/posts", label: "Posts", icon: FileText },
   { href: "/admin/logs", label: "Logs", icon: Activity },
