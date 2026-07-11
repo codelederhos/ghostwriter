@@ -1,0 +1,225 @@
+/**
+ * Öffentliche Draft-Vorschau per Preview-Token.
+ * Zugriff nur mit gültigem Token (sha256-Hash-Vergleich in lib/review/publish.js).
+ * Reine Lese-Ansicht — kein Publish-Button (Preview-Token ist nur Lesen).
+ * Rendering wie die echte Tenant-Blog-Seite (Hero + blog-prose + BlogWidgets).
+ */
+
+import { notFound } from "next/navigation";
+import { query } from "@/lib/db";
+import { findPostByReviewToken } from "@/lib/review/publish";
+import BlogWidgets from "@/app/[tenant]/[lang]/blog/[slug]/BlogWidgets";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "Artikel-Vorschau — Ghostwriter",
+  robots: { index: false, follow: false },
+};
+
+function fmtDatumDE(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  return `${dd}.${mm}.${date.getFullYear()}`;
+}
+
+function parseQa(value) {
+  if (!value) return null;
+  if (Array.isArray(value)) return { legacyIssues: value };
+  if (typeof value === "object") return value;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? { legacyIssues: parsed } : parsed;
+  } catch {
+    return null;
+  }
+}
+
+function gateLabel(status) {
+  if (status === "ready_for_approval") return "Bereit zur Freigabe";
+  if (status === "review") return "Review empfohlen";
+  if (status === "needs_revision") return "Nacharbeit nötig";
+  return "Offen";
+}
+
+function gateBadgeClass(status) {
+  if (status === "ready_for_approval") return "badge badge-success";
+  if (status === "needs_revision") return "badge badge-error";
+  return "badge badge-warning";
+}
+
+function scoreBadgeClass(score) {
+  if (score == null) return "badge badge-neutral";
+  if (score >= 8) return "badge badge-success";
+  if (score >= 5) return "badge badge-warning";
+  return "badge badge-error";
+}
+
+export default async function ReviewPreviewPage({ params }) {
+  let token = params?.token || "";
+  try {
+    token = decodeURIComponent(token);
+  } catch {
+    // Token unverändert lassen — Hash-Vergleich schlägt dann einfach fehl
+  }
+
+  const post = await findPostByReviewToken("preview", token);
+  if (!post) notFound();
+
+  const { rows: [tenant] } = await query(
+    "SELECT id, name, slug FROM tenants WHERE id = $1",
+    [post.tenant_id]
+  );
+
+  const qa = parseQa(post.qa_issues);
+  const gateStatus = qa?.gate_status || qa?.status || null;
+  const qaScore = post.qa_score != null ? Number(post.qa_score) : (qa?.score != null ? Number(qa.score) : null);
+  const checks = Array.isArray(qa?.checks) ? qa.checks : [];
+  const failedChecks = checks.filter((c) => !c.passed);
+  const legacyIssues = Array.isArray(qa?.legacyIssues) ? qa.legacyIssues : [];
+
+  const wordCount = post.blog_body
+    ? post.blog_body.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length
+    : 0;
+  const readingMinutes = Math.max(1, Math.round(wordCount / 200));
+
+  const isPublished = post.status === "published";
+  const isRejected = post.status === "rejected";
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-white">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-2">
+          <span className="font-bold text-lg break-words">{tenant?.name || "Ghostwriter"}</span>
+          <span className="badge badge-neutral">Vorschau</span>
+        </div>
+      </header>
+
+      {/* Status-Banner */}
+      {isPublished ? (
+        <div className="bg-emerald-50 border-b border-emerald-200 px-6 py-2.5 text-center">
+          <span className="text-sm font-medium text-emerald-800">
+            Dieser Artikel ist bereits veröffentlicht.{" "}
+            {post.blog_url && (
+              <a href={post.blog_url} className="underline underline-offset-2">Zum Artikel</a>
+            )}
+          </span>
+        </div>
+      ) : isRejected ? (
+        <div className="bg-gray-50 border-b border-border px-6 py-2.5 text-center">
+          <span className="text-sm font-medium text-muted-foreground">
+            Dieser Entwurf wurde verworfen und wird nicht veröffentlicht.
+          </span>
+        </div>
+      ) : (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5 text-center">
+          <span className="text-sm font-medium text-amber-800">
+            Vorschau — dieser Artikel ist noch nicht veröffentlicht
+          </span>
+        </div>
+      )}
+
+      {/* Article — Rendering wie die echte Blog-Seite */}
+      <article className="max-w-3xl mx-auto px-6 py-12 min-w-0">
+        <div className="mb-6">
+          <p className="text-sm text-muted-foreground mb-2 flex flex-wrap items-center gap-2">
+            {post.category && <span>{post.category}</span>}
+            {post.category && <span className="text-muted-foreground/40">&middot;</span>}
+            <span>{fmtDatumDE(post.created_at)}</span>
+            <span className="text-muted-foreground/40">&middot;</span>
+            <span>{readingMinutes} min Lesezeit</span>
+            {post.language && (
+              <>
+                <span className="text-muted-foreground/40">&middot;</span>
+                <span className="uppercase tracking-wider">{post.language}</span>
+              </>
+            )}
+          </p>
+          <h1 className="text-3xl font-bold leading-tight mb-3 break-words">{post.blog_title}</h1>
+          {post.blog_meta_description && (
+            <p className="text-lg text-muted-foreground">{post.blog_meta_description}</p>
+          )}
+        </div>
+
+        {/* Hero-Bild */}
+        {post.image_url ? (
+          <div className="rounded-xl overflow-hidden mb-8 aspect-[16/9]">
+            <img
+              src={post.image_url}
+              alt={post.image_alt_text || post.blog_title}
+              className="w-full h-full object-cover"
+              width={1536}
+              height={864}
+              fetchPriority="high"
+            />
+          </div>
+        ) : (
+          <div
+            className="rounded-xl overflow-hidden mb-8 aspect-[16/9] bg-muted flex items-center justify-center"
+            role="img"
+            aria-label={post.image_alt_text || post.blog_title}
+            style={{ minHeight: "200px" }}
+          >
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted-foreground/30">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <circle cx="12" cy="12" r="3.5" />
+              <path d="M7 5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1" />
+            </svg>
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="blog-prose" dangerouslySetInnerHTML={{ __html: post.blog_body || "<p>Noch kein Artikeltext vorhanden.</p>" }} />
+        <BlogWidgets />
+
+        {/* QA-Kurzinfo */}
+        <section className="mt-12 border border-border rounded-xl bg-card p-5 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <h2 className="text-base font-semibold mr-1">Qualitätsprüfung</h2>
+            <span className={scoreBadgeClass(qaScore)}>
+              QA-Score: {qaScore != null ? `${qaScore}/10` : "–"}
+            </span>
+            {gateStatus && <span className={gateBadgeClass(gateStatus)}>{gateLabel(gateStatus)}</span>}
+          </div>
+
+          {failedChecks.length > 0 ? (
+            <ul className="space-y-2">
+              {failedChecks.slice(0, 6).map((check) => (
+                <li key={check.id || check.label} className="flex flex-wrap items-start gap-2 text-sm">
+                  <span className={check.severity === "critical" ? "badge badge-error shrink-0" : "badge badge-warning shrink-0"}>
+                    {check.severity === "critical" ? "Kritisch" : "Hinweis"}
+                  </span>
+                  <span className="text-muted-foreground break-words min-w-0">
+                    {check.label ? `${check.label}: ` : ""}{check.message || "Review nötig"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : legacyIssues.length > 0 ? (
+            <ul className="space-y-2">
+              {legacyIssues.slice(0, 6).map((issue, idx) => (
+                <li key={idx} className="flex flex-wrap items-start gap-2 text-sm">
+                  <span className="badge badge-warning shrink-0">Hinweis</span>
+                  <span className="text-muted-foreground break-words min-w-0">{String(issue)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground mb-0">
+              Keine offenen QA-Punkte — automatische Prüfung ohne Beanstandung.
+            </p>
+          )}
+
+          <p className="text-xs text-muted-foreground mt-4 mb-0">
+            Diese Vorschau nutzt denselben Blog-Rahmen wie veröffentlichte Artikel.
+            Die Veröffentlichung erfolgt ausschließlich über den Freigabe-Link aus der Benachrichtigung.
+          </p>
+        </section>
+      </article>
+    </div>
+  );
+}

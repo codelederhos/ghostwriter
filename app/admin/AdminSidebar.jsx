@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, Settings, FileText, Activity, LogOut, Menu, X, GitBranch, Target, LineChart, Newspaper } from "lucide-react";
+import { LayoutDashboard, Building2, Settings, FileText, Activity, LogOut, Menu, X, GitBranch, Target, LineChart, Newspaper, ClipboardCheck } from "lucide-react";
 
 const links = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -13,6 +13,7 @@ const links = [
   { href: "/admin/seo-content-scout", label: "Content Scout", icon: Newspaper },
   { href: "/admin/seo-feedback", label: "Feedback", icon: LineChart },
   { href: "/admin/posts", label: "Posts", icon: FileText },
+  { href: "/admin/drafts", label: "Drafts", icon: ClipboardCheck },
   { href: "/admin/logs", label: "Logs", icon: Activity },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
