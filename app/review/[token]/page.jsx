@@ -89,6 +89,20 @@ export default async function ReviewPreviewPage({ params }) {
   const isPublished = post.status === "published";
   const isRejected = post.status === "rejected";
 
+  // Social- und GBP-Texte für die Prüfstrecke (werden später autonom gepostet)
+  let social = null;
+  if (post.social_text) {
+    if (typeof post.social_text === "object") social = post.social_text;
+    else { try { social = JSON.parse(post.social_text); } catch { social = null; } }
+  }
+  const blogUrlForCta = post.blog_url
+    || `${process.env.NEXT_PUBLIC_BASE_URL || "https://ghostwriter.code-lederhos.de"}/${tenant?.slug}/${post.language}/blog/${post.blog_slug}`;
+  const socialCards = [
+    { key: "linkedin", label: "LinkedIn", text: social?.linkedin },
+    { key: "facebook", label: "Facebook", text: social?.facebook },
+    { key: "instagram", label: "Instagram", text: social?.instagram },
+  ].filter((c) => c.text && String(c.text).trim());
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -175,6 +189,54 @@ export default async function ReviewPreviewPage({ params }) {
         {/* Body */}
         <div className="blog-prose" dangerouslySetInnerHTML={{ __html: post.blog_body || "<p>Noch kein Artikeltext vorhanden.</p>" }} />
         <BlogWidgets />
+
+        {/* Zweites Artikelbild — nur wenn es nicht schon im Body eingebettet ist */}
+        {post.image_url_2 && !(post.blog_body || "").includes(post.image_url_2) && (
+          <figure className="mt-8 mb-0">
+            <div className="rounded-xl overflow-hidden aspect-[16/9]">
+              <img
+                src={post.image_url_2}
+                alt={post.image_alt_text_2 || post.blog_title}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </div>
+            {post.image_alt_text_2 && (
+              <figcaption className="text-xs text-muted-foreground mt-2">{post.image_alt_text_2}</figcaption>
+            )}
+          </figure>
+        )}
+
+        {/* Social-Posts — Prüfstrecke vor autonomem Posting */}
+        {(socialCards.length > 0 || post.gbp_text) && (
+          <section className="mt-12 min-w-0">
+            <h2 className="text-base font-semibold mb-3">Social-Posts zur Prüfung</h2>
+            <div className="space-y-4">
+              {socialCards.map((card) => (
+                <div key={card.key} className="border border-border rounded-xl bg-card p-5 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <span className="font-semibold text-sm">{card.label}</span>
+                    <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words mb-0">{card.text}</p>
+                </div>
+              ))}
+              {post.gbp_text && (
+                <div className="border border-border rounded-xl bg-card p-5 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <span className="font-semibold text-sm">Google Business Post</span>
+                    <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words mb-3">{post.gbp_text}</p>
+                  <p className="text-xs text-muted-foreground mb-0 break-words">
+                    CTA-Button: <span className="font-medium">&bdquo;Mehr erfahren&ldquo;</span> &rarr; {blogUrlForCta}
+                    <span className="block mt-1">Nach Freigabe zeigt der CTA auf die finale Artikel-URL der Website.</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* QA-Kurzinfo */}
         <section className="mt-12 border border-border rounded-xl bg-card p-5 min-w-0">

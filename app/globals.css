@@ -84,9 +84,13 @@ body {
   }
   .blog-prose .backlink-note { @apply text-sm text-muted-foreground border-l-2 border-primary/30 pl-3 italic; }
 
-  /* Blog — Vergleichstabelle */
+  /* Blog — Vergleichstabelle (mobil: horizontal scrollbar statt Viewport sprengen) */
   .blog-prose table.comparison-table, .blog-prose table {
     @apply w-full text-sm border-collapse mb-6;
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
   }
   .blog-prose table th {
     @apply px-3 py-2 text-left font-semibold bg-muted text-foreground border border-border;
@@ -669,6 +673,7 @@ body {
 }
 
 /* Blog: Chart.js Container */
-.gw-chart { margin: 2rem 0; border-radius: 12px; border: 1px solid hsl(var(--border)); padding: 1.5rem 1.25rem; background: hsl(var(--muted)); }
+.gw-chart { margin: 2rem 0; border-radius: 12px; border: 1px solid hsl(var(--border)); padding: 1.5rem 1.25rem; background: hsl(var(--muted)); max-width: 100%; overflow-x: auto; }
+.gw-chart canvas { max-width: 100%; }
 .gw-chart canvas { display: block; max-height: 420px; }
 .gw-chart script { display: none; }
