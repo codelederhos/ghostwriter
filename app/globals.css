@@ -179,10 +179,12 @@ body {
 
   /* ── Blog Content-Bausteine (Rich Components) ────────── */
 
-  /* Callout-Box: Tipp / Info / Warnung */
+  /* Callout-Box: Tipp / Info / Warnung
+     WICHTIG: block statt flex — bei flex werden anonyme Textknoten neben
+     <strong>/<a> zu eigenen Spalten und der Text zerfällt (v.a. mobil). */
   .blog-prose .callout {
-    @apply relative flex gap-4 rounded-2xl my-6 text-sm leading-relaxed overflow-hidden;
-    padding: 1rem 1.25rem 1rem 1.5rem;
+    @apply relative block rounded-2xl my-6 text-sm leading-relaxed overflow-hidden;
+    padding: 1rem 1.25rem 1rem 3.25rem;
     box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
   }
   .blog-prose .callout::after {
@@ -190,8 +192,12 @@ body {
     @apply absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl;
   }
   .blog-prose .callout::before {
-    @apply flex-shrink-0 text-xl leading-tight mt-0.5;
+    @apply absolute text-xl leading-tight;
+    left: 1.1rem;
+    top: 0.95rem;
   }
+  .blog-prose .callout > p { @apply mb-2; }
+  .blog-prose .callout > p:last-child { @apply mb-0; }
   .blog-prose .callout--tip {
     background: linear-gradient(135deg, #f0fdf4, #f7fef9);
     @apply border border-emerald-100 text-emerald-950;
@@ -245,8 +251,13 @@ body {
     @apply list-none pl-0 my-6;
     counter-reset: step;
   }
+  /* Steps: Nummer links, Titel (strong) in der ersten Zeile, Subtext
+     darunter eingerückt — block statt flex, sonst zerfallen Label und
+     anonymer Textknoten in flatternde Spalten (Desktop + mobil). */
   .blog-prose .process-steps li {
-    @apply relative flex gap-4 pb-6;
+    @apply relative block pb-6;
+    padding-left: 3.75rem;
+    min-height: 2.75rem;
     counter-increment: step;
   }
   .blog-prose .process-steps li:last-child {
@@ -255,19 +266,18 @@ body {
   /* Verbindungslinie zwischen Steps */
   .blog-prose .process-steps li:not(:last-child)::after {
     content: "";
-    @apply absolute left-[1.375rem] top-9 bottom-0 w-px;
+    @apply absolute left-[1.375rem] top-12 bottom-0 w-px;
     background: linear-gradient(to bottom, hsl(var(--primary)/0.25), hsl(var(--primary)/0.05));
   }
   .blog-prose .process-steps li::before {
     content: counter(step);
-    @apply flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-sm font-black text-white z-10;
+    @apply absolute left-0 top-0 w-11 h-11 rounded-full flex items-center justify-center text-sm font-black text-white z-10;
     background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)/0.75));
     box-shadow: 0 3px 10px hsl(var(--primary)/0.35);
-    min-width: 2.75rem;
     letter-spacing: -0.02em;
   }
-  .blog-prose .process-steps li > * {
-    @apply pt-2;
+  .blog-prose .process-steps li > strong:first-child {
+    @apply block text-base leading-snug pt-2 mb-1;
   }
 
   /* Check/Cross-Liste */
@@ -275,21 +285,24 @@ body {
   .blog-prose .cross-list {
     @apply list-none pl-0 space-y-2 my-5;
   }
+  /* block statt flex: Label (strong) bleibt inline, Text fließt natürlich
+     weiter, nichts zerfällt in Spalten */
   .blog-prose .check-list li,
   .blog-prose .cross-list li {
-    @apply flex items-start gap-2.5 text-sm leading-relaxed;
+    @apply relative block text-sm leading-relaxed;
+    padding-left: 2rem;
   }
   .blog-prose .check-list li::before {
     content: "";
-    @apply flex-shrink-0 w-5 h-5 rounded-full mt-0.5;
+    @apply absolute left-0 w-5 h-5 rounded-full;
+    top: 0.125rem;
     background: #dcfce7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%2316a34a' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat;
-    min-width: 1.25rem;
   }
   .blog-prose .cross-list li::before {
     content: "";
-    @apply flex-shrink-0 w-5 h-5 rounded-full mt-0.5;
+    @apply absolute left-0 w-5 h-5 rounded-full;
+    top: 0.125rem;
     background: #fee2e2 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 3l6 6M9 3l-6 6' stroke='%23dc2626' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center/10px no-repeat;
-    min-width: 1.25rem;
   }
 
   /* Highlight-Quote: Hervorgehobene Kernaussage */
@@ -674,6 +687,7 @@ body {
 
 /* Blog: Chart.js Container */
 .gw-chart { margin: 2rem 0; border-radius: 12px; border: 1px solid hsl(var(--border)); padding: 1.5rem 1.25rem; background: hsl(var(--muted)); max-width: 100%; overflow-x: auto; }
-.gw-chart canvas { max-width: 100%; }
+.gw-chart canvas { max-width: 100%; min-height: 280px; }
+@media (max-width: 640px) { .gw-chart { padding: 1rem 0.75rem; } .gw-chart canvas { min-height: 240px; } }
 .gw-chart canvas { display: block; max-height: 420px; }
 .gw-chart script { display: none; }

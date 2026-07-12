@@ -23,7 +23,7 @@ const PLATFORM_LABEL = {
 };
 
 // Laengen-Limits pro Plattform (Zeichen)
-const MAX_CHARS = { linkedin: 1300, facebook: 800, instagram: 1000, gbp: 300 };
+const MAX_CHARS = { linkedin: 1300, facebook: 800, instagram: 1000, gbp: 1400 };
 
 const PLATFORM_INSTRUCTION = {
   linkedin:
@@ -38,8 +38,9 @@ const PLATFORM_INSTRUCTION = {
     "Schreibe einen Instagram-Text im Hook-Stil: starke erste Zeile, danach 2 bis 4 knackige Punkte, " +
     "am Ende ein Call-to-Action. Wenige passende Hashtags am Ende. Maximal 1000 Zeichen.",
   gbp:
-    "Schreibe einen Google-Business-Profil-Post: kompakt, lokal, mit klarem Call-to-Action " +
-    "(z. B. Kontakt oder Beratung). Keine Hashtags. Maximal 300 Zeichen.",
+    "Schreibe einen Google-Business-Profil-Post: so informativ wie ein LinkedIn-Post, Sie-Ansprache, " +
+    "600 bis 1100 Zeichen, Hook plus 2 bis 3 Absätze konkreter Mehrwert, vollständige Sätze (nichts abschneiden). " +
+    "Keine Hashtags. Letzter Satz ist ein klarer Call-to-Action, der zum 'Mehr erfahren'-Button führt (keinen Link schreiben).",
 };
 
 // An Satzgrenze kuerzen, falls das Modell das Limit reisst.

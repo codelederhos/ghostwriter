@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import { query } from "@/lib/db";
 import { findPostByReviewToken } from "@/lib/review/publish";
 import BlogWidgets from "@/app/[tenant]/[lang]/blog/[slug]/BlogWidgets";
+import CopyButton from "./CopyButton";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function ReviewPreviewPage({ params }) {
   if (!post) notFound();
 
   const { rows: [tenant] } = await query(
-    "SELECT id, name, slug FROM tenants WHERE id = $1",
+    "SELECT id, name, slug, domain FROM tenants WHERE id = $1",
     [post.tenant_id]
   );
 
@@ -95,8 +96,11 @@ export default async function ReviewPreviewPage({ params }) {
     if (typeof post.social_text === "object") social = post.social_text;
     else { try { social = JSON.parse(post.social_text); } catch { social = null; } }
   }
-  const blogUrlForCta = post.blog_url
-    || `${process.env.NEXT_PUBLIC_BASE_URL || "https://ghostwriter.code-lederhos.de"}/${tenant?.slug}/${post.language}/blog/${post.blog_slug}`;
+  // CTA zeigt IMMER auf die konfigurierte Tenant-Domain, nie auf Ghostwriter
+  const blogUrlForCta = tenant?.domain
+    ? `https://${tenant.domain.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/blog/${post.blog_slug}`
+    : (post.blog_url || `${process.env.NEXT_PUBLIC_BASE_URL || "https://ghostwriter.code-lederhos.de"}/${tenant?.slug}/${post.language}/blog/${post.blog_slug}`);
+  const postImage = post.image_url || null;
   const socialCards = [
     { key: "linkedin", label: "LinkedIn", text: social?.linkedin },
     { key: "facebook", label: "Facebook", text: social?.facebook },
@@ -173,10 +177,9 @@ export default async function ReviewPreviewPage({ params }) {
           </div>
         ) : (
           <div
-            className="rounded-xl overflow-hidden mb-8 aspect-[16/9] bg-muted flex items-center justify-center"
+            className="rounded-xl overflow-hidden mb-8 aspect-[16/9] bg-muted flex items-center justify-center w-full max-w-full"
             role="img"
             aria-label={post.image_alt_text || post.blog_title}
-            style={{ minHeight: "200px" }}
           >
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted-foreground/30">
               <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -217,7 +220,13 @@ export default async function ReviewPreviewPage({ params }) {
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="font-semibold text-sm">{card.label}</span>
                     <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
+                    <span className="ml-auto"><CopyButton text={card.text} /></span>
                   </div>
+                  {postImage && (
+                    <div className="rounded-lg overflow-hidden mb-3 aspect-[16/9] max-w-md">
+                      <img src={postImage} alt="Post-Bild" className="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                  )}
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words mb-0">{card.text}</p>
                 </div>
               ))}
@@ -226,11 +235,16 @@ export default async function ReviewPreviewPage({ params }) {
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="font-semibold text-sm">Google Business Post</span>
                     <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
+                    <span className="ml-auto"><CopyButton text={post.gbp_text} /></span>
                   </div>
+                  {postImage && (
+                    <div className="rounded-lg overflow-hidden mb-3 aspect-[16/9] max-w-md">
+                      <img src={postImage} alt="Post-Bild" className="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                  )}
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words mb-3">{post.gbp_text}</p>
                   <p className="text-xs text-muted-foreground mb-0 break-words">
                     CTA-Button: <span className="font-medium">&bdquo;Mehr erfahren&ldquo;</span> &rarr; {blogUrlForCta}
-                    <span className="block mt-1">Nach Freigabe zeigt der CTA auf die finale Artikel-URL der Website.</span>
                   </p>
                 </div>
               )}
