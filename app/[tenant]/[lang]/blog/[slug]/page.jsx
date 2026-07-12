@@ -1,7 +1,9 @@
 import { query } from "@/lib/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { injectH2Ids } from "@/lib/blog/heading-ids";
 import BlogWidgets from "./BlogWidgets";
+import ReaderExperience from "@/app/review/[token]/ReaderExperience";
 
 /** Extract FAQ items from <details><summary> blocks in body HTML */
 function extractFAQSchema(html) {
@@ -50,8 +52,11 @@ export async function generateMetadata({ params }) {
   };
 }
 
-export default async function BlogPostPage({ params }) {
+export default async function BlogPostPage({ params, searchParams }) {
   const { tenant, lang, slug } = params;
+
+  // Screenshot-Modus (?static=1): keine Animationen, Counter sofort auf Endwert
+  const staticMode = searchParams?.static === "1";
 
   const { rows: [t] } = await query(
     "SELECT id, name, slug, domain FROM tenants WHERE slug = $1 AND status = 'active'",
@@ -218,9 +223,10 @@ export default async function BlogPostPage({ params }) {
             </div>
           )}
 
-          {/* Body */}
-          <div className="blog-prose" dangerouslySetInnerHTML={{ __html: post.blog_body }} />
-          <BlogWidgets />
+          {/* Body — h2-Anker-IDs serverseitig injiziert (Floating-TOC) */}
+          <div className="blog-prose" dangerouslySetInnerHTML={{ __html: staticMode ? injectH2Ids(post.blog_body).replace(/loading="lazy"/g, 'loading="eager"') : injectH2Ids(post.blog_body) }} />
+          <ReaderExperience mode="live" staticMode={staticMode} />
+          <BlogWidgets staticMode={staticMode} />
         </article>
       </div>
     </>

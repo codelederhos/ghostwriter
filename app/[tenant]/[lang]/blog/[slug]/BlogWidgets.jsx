@@ -7,9 +7,15 @@ import { useEffect } from "react";
  * - [data-widget="stat"] → animated counter (0 → value)
  * - .gw-chart → interactive Chart.js chart
  * - .sources-list → smooth scroll anchor
+ *
+ * staticMode (Prop von der Server-Seite, ?static=1) bzw. window.__GW_STATIC
+ * (gesetzt von ReaderExperience.jsx): keine Animationen, Counter sofort auf
+ * Endwert — für Screenshots.
  */
-export default function BlogWidgets() {
+export default function BlogWidgets({ staticMode = false }) {
   useEffect(() => {
+    const isStatic = staticMode === true
+      || (typeof window !== "undefined" && window.__GW_STATIC === true);
     // Chart.js: load from CDN and render all .gw-chart containers
     const charts = document.querySelectorAll(".gw-chart");
     if (charts.length > 0) {
@@ -20,7 +26,7 @@ export default function BlogWidgets() {
           if (!cfg || el.querySelector("canvas")) return;
           try {
             const config = JSON.parse(cfg.textContent);
-            applyChartDefaults(config);
+            applyChartDefaults(config, isStatic);
             const canvas = document.createElement("canvas");
             el.appendChild(canvas);
             // eslint-disable-next-line no-undef
@@ -66,8 +72,15 @@ export default function BlogWidgets() {
       if (label) card.appendChild(labelEl);
       el.replaceWith(card);
 
-      // Count-up animation
-      animateCounter(numEl, 0, target, unit, 1200);
+      if (isStatic) {
+        // Screenshot-Modus: Endwert sofort, keine Pop-Animation
+        card.style.animation = "none";
+        const decimals = Number.isInteger(target) ? 0 : String(target).split(".")[1]?.length || 1;
+        numEl.textContent = target.toFixed(decimals) + unit;
+      } else {
+        // Count-up animation
+        animateCounter(numEl, 0, target, unit, 1200);
+      }
     });
 
     // Smooth scroll for source pill links
@@ -79,12 +92,12 @@ export default function BlogWidgets() {
         if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
       });
     });
-  }, []);
+  }, [staticMode]);
 
   return null;
 }
 
-function applyChartDefaults(config) {
+function applyChartDefaults(config, isStatic = false) {
   const PALETTE = ["#4f46e5","#16a34a","#dc2626","#d97706","#0891b2","#7c3aed","#be185d"];
   const datasets = config?.data?.datasets || [];
   const isBar = ["bar","horizontalBar"].includes(config.type);
@@ -96,7 +109,7 @@ function applyChartDefaults(config) {
   });
   if (!config.options) config.options = {};
   config.options.responsive = true;
-  config.options.animation = { duration: 900, easing: "easeOutQuart" };
+  config.options.animation = isStatic ? false : { duration: 900, easing: "easeOutQuart" };
   if (!config.options.plugins) config.options.plugins = {};
   if (!config.options.plugins.legend) config.options.plugins.legend = { labels: { font: { size: 13 } } };
   if (config.options.plugins.title) config.options.plugins.title.font = { size: 15, weight: "bold" };

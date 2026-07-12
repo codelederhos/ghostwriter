@@ -1,0 +1,222 @@
+export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
+import { query } from "@/lib/db";
+
+const SYNC_TOKEN = process.env.SEO_SYNC_TOKEN || "";
+// Vertrauenswuerdige Quellen: Loopback + der Server selbst (der taegliche 05:00-Metrik-Job
+// laeuft server-intern). X-Real-IP wird von nginx als echter TCP-Peer gesetzt (nicht spoofbar).
+const TRUSTED_IPS = new Set(
+  ["127.0.0.1", "::1", "95.111.228.131", ...(process.env.SEO_SYNC_TRUSTED_IPS || "").split(",")]
+    .map((s) => s.trim()).filter(Boolean)
+);
+
+/**
+ * POST /api/seo/metrics/sync
+ * Server-interner Job sendet täglich Analytics + GSC Daten pro Tenant.
+ * Body: { tenant, date, pages: [{url_path, analytics:{...}, gsc:{...}, top_queries:[...]}] }
+ * Auth: gueltiges SEO_SYNC_TOKEN ODER vertrauenswuerdige Server-IP (nginx X-Real-IP).
+ */
+export async function POST(req) {
+  const auth = req.headers.get("authorization") || "";
+  const realIp = (req.headers.get("x-real-ip") || "").trim();
+  const tokenOk = Boolean(SYNC_TOKEN) && auth === `Bearer ${SYNC_TOKEN}`;
+  const ipOk = TRUSTED_IPS.has(realIp);
+  if (!tokenOk && !ipOk) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => null);
+  if (!body?.tenant || !body?.date || !Array.isArray(body?.pages)) {
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
+  const { tenant, date, pages } = body;
+
+  const { rows: [t] } = await query(
+    "SELECT id FROM tenants WHERE slug = $1",
+    [tenant]
+  );
+  if (!t) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
+  let upserted = 0;
+  let diagnosed = 0;
+
+  for (const p of pages) {
+    // Slug aus URL-Pfad extrahieren (letztes Segment ohne Slash)
+    const slug = p.url_path.replace(/^\/|\/$/g, "").split("/").pop() || "";
+    if (!slug) continue;
+
+    // Alle Sprachen dieser Seite finden
+    const { rows: seoPages } = await query(
+      "SELECT id, lang FROM seo_pages WHERE tenant_id = $1 AND slug = $2",
+      [t.id, slug]
+    );
+    if (!seoPages.length) continue;
+
+    for (const sp of seoPages) {
+      const ana = p.analytics || {};
+      const gsc = p.gsc || {};
+      const queries = p.top_queries || [];
+
+      await query(
+        `INSERT INTO seo_page_metrics
+           (page_id, date,
+            gsc_impressions, gsc_clicks, gsc_ctr, gsc_position, gsc_top_queries,
+            ana_sessions, ana_bounces, ana_duration_avg_s,
+            ana_cta_clicks, ana_cta_breakdown, ana_scroll_50pct)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         ON CONFLICT (page_id, date) DO UPDATE SET
+           gsc_impressions    = EXCLUDED.gsc_impressions,
+           gsc_clicks         = EXCLUDED.gsc_clicks,
+           gsc_ctr            = EXCLUDED.gsc_ctr,
+           gsc_position       = EXCLUDED.gsc_position,
+           gsc_top_queries    = EXCLUDED.gsc_top_queries,
+           ana_sessions       = EXCLUDED.ana_sessions,
+           ana_bounces        = EXCLUDED.ana_bounces,
+           ana_duration_avg_s = EXCLUDED.ana_duration_avg_s,
+           ana_cta_clicks     = EXCLUDED.ana_cta_clicks,
+           ana_cta_breakdown  = EXCLUDED.ana_cta_breakdown,
+           ana_scroll_50pct   = EXCLUDED.ana_scroll_50pct`,
+        [
+          sp.id, date,
+          gsc.impressions || 0, gsc.clicks || 0,
+          gsc.ctr || 0, gsc.position || 0,
+          JSON.stringify(queries),
+          ana.sessions || 0, ana.bounces || 0, ana.duration_avg_s || 0,
+          ana.cta_clicks || 0,
+          JSON.stringify(ana.cta_breakdown || {}),
+          ana.scroll_50pct || 0,
+        ]
+      );
+      upserted++;
+
+      // Diagnose berechnen (letzte 30 Tage aggregieren)
+      await runDiagnosis(sp.id);
+      diagnosed++;
+    }
+  }
+
+  return NextResponse.json({ ok: true, upserted, diagnosed });
+}
+
+async function runDiagnosis(pageId) {
+  // 30-Tage-Aggregat
+  const { rows: [agg] } = await query(
+    `SELECT
+       SUM(gsc_impressions) AS imp30,
+       SUM(gsc_clicks)      AS clicks30,
+       CASE WHEN SUM(gsc_impressions) > 0
+            THEN SUM(gsc_clicks)::float / SUM(gsc_impressions)
+            ELSE 0 END       AS ctr30,
+       AVG(gsc_position)    AS pos30,
+       SUM(ana_sessions)    AS ses30,
+       SUM(ana_bounces)     AS bnc30,
+       SUM(ana_cta_clicks)  AS cta30
+     FROM seo_page_metrics
+     WHERE page_id = $1 AND date >= CURRENT_DATE - INTERVAL '30 days'`,
+    [pageId]
+  );
+
+  // 7-Tage vs. 7-14-Tage Position (Position-Drop-Check)
+  const { rows: [pos7] } = await query(
+    `SELECT AVG(gsc_position) AS p FROM seo_page_metrics
+     WHERE page_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days'`,
+    [pageId]
+  );
+  const { rows: [pos14] } = await query(
+    `SELECT AVG(gsc_position) AS p FROM seo_page_metrics
+     WHERE page_id = $1 AND date BETWEEN CURRENT_DATE - INTERVAL '14 days' AND CURRENT_DATE - INTERVAL '7 days'`,
+    [pageId]
+  );
+
+  // Top-Queries der letzten 7 Tage für Keyword-Gap
+  const { rows: queryRows } = await query(
+    `SELECT gsc_top_queries FROM seo_page_metrics
+     WHERE page_id = $1 AND date >= CURRENT_DATE - INTERVAL '7 days'
+     ORDER BY date DESC LIMIT 7`,
+    [pageId]
+  );
+  const topQueries = queryRows.flatMap(r => r.gsc_top_queries || []);
+
+  // Aktuellen Content holen für Keyword-Gap-Check
+  const { rows: [pg] } = await query(
+    "SELECT intro_html, local_html, faq_json FROM seo_pages WHERE id = $1",
+    [pageId]
+  );
+  const contentText = [
+    pg?.intro_html || "", pg?.local_html || "",
+    JSON.stringify(pg?.faq_json || [])
+  ].join(" ").toLowerCase();
+
+  // Flags berechnen
+  const imp30    = agg?.imp30 || 0;
+  const clicks30 = agg?.clicks30 || 0;
+  const ctr30    = parseFloat(agg?.ctr30 || 0);
+  const pos30    = parseFloat(agg?.pos30 || 0);
+  const ses30    = agg?.ses30 || 0;
+  const bnc30    = agg?.bnc30 || 0;
+  const cta30    = agg?.cta30 || 0;
+
+  const posNow  = parseFloat(pos7?.p || 0);
+  const posPrev = parseFloat(pos14?.p || 0);
+
+  const bounceRate = ses30 > 0 ? bnc30 / ses30 : 0;
+  const ctaRate    = ses30 > 0 ? cta30 / ses30 : 0;
+
+  const flags = {
+    not_indexed:   imp30 === 0,
+    ctr_low:       pos30 > 0 && pos30 <= 20 && ctr30 < 0.015,
+    bounce_high:   ses30 >= 10 && bounceRate > 0.75,
+    no_cta:        ses30 >= 10 && ctaRate < 0.02,
+    position_drop: posNow > 0 && posPrev > 0 && (posNow - posPrev) > 5,
+    near_page1:    pos30 >= 11 && pos30 <= 20,
+  };
+
+  // Keyword-Gap
+  const gaps = [];
+  const seenQueries = new Map();
+  for (const q of topQueries) {
+    if (!q.query) continue;
+    const key = q.query.toLowerCase();
+    if (!seenQueries.has(key)) seenQueries.set(key, { impressions: 0, clicks: 0 });
+    seenQueries.get(key).impressions += q.impressions || 0;
+    seenQueries.get(key).clicks     += q.clicks || 0;
+  }
+  for (const [qText, stats] of seenQueries.entries()) {
+    if (stats.impressions >= 5 && !contentText.includes(qText)) {
+      gaps.push({ query: qText, impressions: stats.impressions, clicks: stats.clicks, in_content: false });
+    }
+  }
+  flags.keyword_gap = gaps.length > 0;
+
+  // Severity
+  const criticalFlags = ["not_indexed", "position_drop"];
+  const severity = criticalFlags.some(f => flags[f]) ? "critical"
+    : Object.values(flags).some(Boolean) ? "warn" : "ok";
+
+  await query(
+    `INSERT INTO seo_page_diagnostics
+       (page_id, updated_at,
+        flag_not_indexed, flag_ctr_low, flag_bounce_high, flag_no_cta,
+        flag_position_drop, flag_near_page1, flag_keyword_gap,
+        keyword_gaps, severity)
+     VALUES ($1, NOW(), $2,$3,$4,$5,$6,$7,$8,$9,$10)
+     ON CONFLICT (page_id) DO UPDATE SET
+       updated_at         = NOW(),
+       flag_not_indexed   = EXCLUDED.flag_not_indexed,
+       flag_ctr_low       = EXCLUDED.flag_ctr_low,
+       flag_bounce_high   = EXCLUDED.flag_bounce_high,
+       flag_no_cta        = EXCLUDED.flag_no_cta,
+       flag_position_drop = EXCLUDED.flag_position_drop,
+       flag_near_page1    = EXCLUDED.flag_near_page1,
+       flag_keyword_gap   = EXCLUDED.flag_keyword_gap,
+       keyword_gaps       = EXCLUDED.keyword_gaps,
+       severity           = EXCLUDED.severity`,
+    [
+      pageId,
+      flags.not_indexed, flags.ctr_low, flags.bounce_high, flags.no_cta,
+      flags.position_drop, flags.near_page1, flags.keyword_gap,
+      JSON.stringify(gaps), severity,
+    ]
+  );
+}

@@ -7,6 +7,8 @@
  */
 
 import { query } from "@/lib/db";
+import { loadTenant } from "@/lib/pipeline/index";
+import { generateText } from "@/lib/providers/text";
 
 // ---------------------------------------------------------------- UUID-Guard
 
@@ -278,4 +280,85 @@ export function buildTenantVoice(tenant, profile) {
       "Kein KI-Sprech, keine Floskeln, sachlich, professionell, konkret. " +
       "Erfinde keine Zahlen oder Fakten.",
   };
+}
+
+// -------------------------------------------------- Sektion per KI neu schreiben
+
+/** Fehler mit Maschinen-Code (Routen mappen ihn auf HTTP-Status). */
+function codedError(code, message, extra = {}) {
+  const err = new Error(message);
+  err.code = code;
+  Object.assign(err, extra);
+  return err;
+}
+
+/**
+ * Schreibt EINE Sektion (Split an <h2>-Grenzen, siehe splitSections) per KI neu.
+ * Gemeinsame Logik fuer die Admin-Regenerate-Route (liefert nur Vorschlag,
+ * kein Persist) und die oeffentliche Review-Route (persistiert direkt).
+ *
+ * Persistiert NICHT — die aufrufende Route entscheidet, was mit newHtml passiert.
+ *
+ * @param {object} post  ghostwriter_posts-Row (mind. tenant_id, blog_body, blog_title, language)
+ * @param {number} idx   Sektions-Index wie splitSections (0 = Intro vor erstem <h2>, falls vorhanden)
+ * @param {string} wish  Änderungswunsch des Redakteurs
+ * @returns {Promise<{newHtml: string, oldHtml: string, sectionCount: number}>}
+ * @throws Error mit .code: section_out_of_range | tenant_load_failed | llm_failed | empty_result
+ */
+export async function regenerateSectionHtml(post, idx, wish) {
+  const sections = splitSections(post.blog_body || "");
+  if (!Number.isInteger(idx) || idx < 0 || idx >= sections.length) {
+    throw codedError(
+      "section_out_of_range",
+      `Sektion ${idx} existiert nicht (0..${sections.length - 1})`,
+      { max: sections.length - 1 }
+    );
+  }
+  const current = sections[idx];
+
+  let tenant, settings, profile;
+  try {
+    ({ tenant, settings, profile } = await loadTenant(post.tenant_id));
+  } catch (e) {
+    throw codedError("tenant_load_failed", e.message);
+  }
+
+  const voice = buildTenantVoice(tenant, profile);
+  const lang = post.language || "de";
+  const langName = lang === "de" ? "Deutsch (Umlaute ä/ö/ü/ß Pflicht)" : lang;
+
+  const system =
+    `Du bist SEO-Texter für ${voice.company}. Tonalität: ${voice.brandVoice}. ` +
+    (voice.contextLine ? voice.contextLine + " " : "") +
+    "Schreibe EINE Blog-Sektion in HTML neu. " +
+    "STRIKT: Behalte die HTML-Struktur (h2, h3, p, ul, ol, li, strong, table) bei. " +
+    "Antworte NUR mit sauberem HTML-Fragment: keine Markdown-Codeblöcke, keine Erklärung, " +
+    "kein <html>, kein <head>, kein <body>, keine <script>-Tags. " +
+    `Sprache: ${langName}. ` +
+    voice.hardRules + " " +
+    // Zusatzregeln (schärfer als hardRules, gelten für die Sektions-Regeneration):
+    "ZUSATZREGELN: Deutsche Rechtschreibung mit ß, wo sie hingehört (z.B. groß, Maß). " +
+    "KEINE Doppelpunkt-Einschübe als Gedankenstrich-Ersatz (also nicht 'Das Ergebnis: mehr Umsatz' " +
+    "als Stilmittel mitten im Satz), stattdessen vollständige Sätze oder Kommas. " +
+    "Erfinde KEINE Firmen-Fakten, Angebote, Leistungen oder Preise, die nicht im Kontext stehen.";
+
+  const user =
+    `Artikel-Titel: ${post.blog_title || ""}\n` +
+    `Primärkeyword: ${post.blog_primary_keyword || "—"}\n` +
+    `Sprache: ${lang}\n\n` +
+    `AKTUELLE SEKTION (idx=${idx}):\n${current.html}\n\n` +
+    `ÄNDERUNGSWUNSCH DES REDAKTEURS:\n${wish}\n\n` +
+    "Gib NUR das neue HTML der Sektion zurück (mit <h2>, falls ursprünglich vorhanden).";
+
+  let newHtml;
+  try {
+    newHtml = await generateText(settings, system, user);
+  } catch (e) {
+    throw codedError("llm_failed", e.message);
+  }
+
+  newHtml = sanitizeArticleHtml(stripCodeFence(newHtml));
+  if (!newHtml) throw codedError("empty_result", "KI hat ein leeres Ergebnis geliefert");
+
+  return { newHtml, oldHtml: current.html, sectionCount: sections.length };
 }

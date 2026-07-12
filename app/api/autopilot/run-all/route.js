@@ -4,6 +4,7 @@ import { runPipeline } from "@/lib/pipeline/index.js";
 import { sendTelegramAlert } from "@/lib/reporters/telegram.js";
 import { decrypt } from "@/lib/crypto.js";
 import { createDueMembershipCycles } from "@/lib/membership.js";
+import { checkCronSecret } from "@/lib/cron-auth.js";
 
 /**
  * Scheduler endpoint: runs all tenants that are due
@@ -11,19 +12,23 @@ import { createDueMembershipCycles } from "@/lib/membership.js";
  */
 export async function POST(req) {
   // Auth via secret header (for cron) or admin session
-  const cronSecret = req.headers.get("x-cron-secret");
-  if (cronSecret !== process.env.CRON_SECRET && cronSecret !== "internal") {
+  if (!checkCronSecret(req)) {
     const { requireAdmin } = await import("@/lib/auth");
     const session = await requireAdmin();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Nur 'auto'-Tenants erzeugt der Basis-Scheduler. 'review'-Tenants (z.B. Baurimmo)
+  // bekommen ihre Artikel ausschliesslich ueber den SEO-Scout/Themen-Wunsch als Draft
+  // in die Telegram-Freigabe. Default 'auto' laesst bestehende Tenants unveraendert.
   const { rows: dueTenants } = await query(
-    `SELECT t.id, t.name, ts.telegram_bot_token, ts.telegram_chat_id
+    `SELECT t.id, t.name, ts.telegram_bot_token, ts.telegram_chat_id,
+            COALESCE(NULLIF(ts.publish_mode, ''), 'auto') AS publish_mode
      FROM tenants t
      JOIN tenant_settings ts ON ts.tenant_id = t.id
      WHERE ts.is_active = true
        AND t.status = 'active'
+       AND COALESCE(NULLIF(ts.publish_mode, ''), 'auto') = 'auto'
        AND (ts.next_run_at IS NULL OR ts.next_run_at <= NOW())`
   );
 
@@ -31,8 +36,11 @@ export async function POST(req) {
 
   for (const tenant of dueTenants) {
     try {
-      const result = await runPipeline(tenant.id);
-      results.push({ tenantId: tenant.id, name: tenant.name, status: "success", ...result });
+      // Sicherheit: nur Tenants mit publish_mode='auto' veröffentlichen automatisch.
+      // Default 'review' → Draft geht in die Freigabe-Strecke (Telegram), kein Live-Publish.
+      const reviewMode = (tenant.publish_mode || "review") !== "auto";
+      const result = await runPipeline(tenant.id, { reviewMode });
+      results.push({ tenantId: tenant.id, name: tenant.name, status: "success", reviewMode, ...result });
     } catch (err) {
       console.error(`[Scheduler] Failed for ${tenant.name}:`, err.message);
       results.push({ tenantId: tenant.id, name: tenant.name, status: "error", error: err.message });

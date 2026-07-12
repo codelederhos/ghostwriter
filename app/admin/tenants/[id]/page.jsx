@@ -62,6 +62,13 @@ export default function TenantDetailPage() {
   const [displayTotal, setDisplayTotal] = useState(0);
   const [regenModal, setRegenModal] = useState(null); // { postId, postTitle, imageUrl, regenPrice }
   const [regenLoading, setRegenLoading] = useState(false);
+  const [swapModal, setSwapModal] = useState(null); // { postId, postTitle, imageUrl }
+  const [swapTab, setSwapTab] = useState("collection"); // collection | upload
+  const [swapImages, setSwapImages] = useState(null); // tenant_reference_images post
+  const [swapImagesLoading, setSwapImagesLoading] = useState(false);
+  const [swapUploadLoading, setSwapUploadLoading] = useState(false);
+  const [swapAddToCollection, setSwapAddToCollection] = useState(true);
+  const [swapDescription, setSwapDescription] = useState("");
   const [exportModal, setExportModal] = useState(null); // { postId, postTitle, upgradeCents, fullPriceCents }
   const pollRef = useRef(null);
   const displayTotalRef = useRef(0);
@@ -262,6 +269,7 @@ export default function TenantDetailPage() {
       if (e.key !== "Escape") return;
       if (exportModal) { setExportModal(null); return; }
       if (regenModal && !regenLoading) { setRegenModal(null); return; }
+      if (swapModal && !swapUploadLoading) { setSwapModal(null); return; }
       if (postPreview) { setPostPreview(null); return; }
       if (showTestModal && !testRunning) { setShowTestModal(false); return; }
       if (deleteConfirm) { setDeleteConfirm(null); return; }
@@ -269,6 +277,18 @@ export default function TenantDetailPage() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [postPreview, showTestModal, testRunning, deleteConfirm]);
+
+  // Sammlung laden wenn Swap-Modal geoeffnet wird
+  useEffect(() => {
+    if (swapModal && swapImages === null) {
+      openSwapAndLoad(swapModal.postId);
+    }
+    if (!swapModal) {
+      // Reset bei Schliessen
+      // (Sammlung im State behalten fuer naechstes Oeffnen ist ok)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swapModal]);
 
   // Laufzeit-Timer: tickt alle 200ms während Pipeline läuft
   useEffect(() => {
@@ -602,6 +622,70 @@ export default function TenantDetailPage() {
       showMsg(e.message, "error");
     }
     setRegenLoading(false);
+  }
+
+  // --- Bild tauschen (Sammlung / Upload) ---
+  async function openSwapAndLoad(postId) {
+    setSwapImagesLoading(true);
+    try {
+      const res = await fetch(`/api/tenants/${id}/images`);
+      const data = await res.json();
+      const postImgs = (data.images || []).filter(i => i.type === "post");
+      setSwapImages(postImgs);
+    } catch (e) {
+      showMsg("Sammlung konnte nicht geladen werden", "error");
+      setSwapImages([]);
+    }
+    setSwapImagesLoading(false);
+  }
+
+  async function applyImageFromCollection(imageUrl) {
+    if (!swapModal) return;
+    const postId = swapModal.postId;
+    const oldUrl = swapModal.imageUrl;
+    // Optimistic
+    setTenantPosts(posts => posts?.map(p => p.id === postId ? { ...p, image_url: imageUrl } : p));
+    setSwapModal(null);
+    try {
+      const res = await fetch(`/api/tenants/${id}/posts/${postId}/image`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: imageUrl }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Fehler");
+      showMsg("Bild getauscht");
+    } catch (e) {
+      // Revert
+      setTenantPosts(posts => posts?.map(p => p.id === postId ? { ...p, image_url: oldUrl } : p));
+      showMsg(e.message || "Tausch fehlgeschlagen", "error");
+    }
+  }
+
+  async function uploadAndApplyImage(file) {
+    if (!swapModal || !file) return;
+    const postId = swapModal.postId;
+    const oldUrl = swapModal.imageUrl;
+    setSwapUploadLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("add_to_collection", swapAddToCollection ? "true" : "false");
+      if (swapDescription.trim()) fd.append("description", swapDescription.trim());
+      const res = await fetch(`/api/tenants/${id}/posts/${postId}/upload-image`, {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Upload fehlgeschlagen");
+      setTenantPosts(posts => posts?.map(p => p.id === postId ? { ...p, image_url: data.image_url } : p));
+      showMsg("Bild hochgeladen und gesetzt");
+      setSwapModal(null);
+    } catch (e) {
+      setTenantPosts(posts => posts?.map(p => p.id === postId ? { ...p, image_url: oldUrl } : p));
+      showMsg(e.message || "Upload fehlgeschlagen", "error");
+    }
+    setSwapUploadLoading(false);
   }
 
   async function handleExportHtml(postId, postTitle) {
@@ -2812,12 +2896,7 @@ export default function TenantDetailPage() {
                       {/* Thumbnail — fade-blend nach rechts via mask-image */}
                       <td className="p-0 w-[88px] overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div
-                          className="relative h-[56px] w-[88px] cursor-pointer group/img"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const regenPrice = billingData?.pricing?.image_regen_price_cents ?? 100;
-                            setRegenModal({ postId: p.id, postTitle: p.blog_title, imageUrl: p.image_url, regenPrice });
-                          }}
+                          className="relative h-[56px] w-[88px] group/img"
                         >
                           {p.image_url ? (
                             <>
@@ -2827,19 +2906,57 @@ export default function TenantDetailPage() {
                                 className="absolute inset-0 w-full h-full object-cover"
                                 style={{ WebkitMaskImage: "linear-gradient(to right, black 45%, transparent 100%)", maskImage: "linear-gradient(to right, black 45%, transparent 100%)" }}
                               />
-                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center rounded-sm" title="Bild neu generieren"
-                                style={{ WebkitMaskImage: "linear-gradient(to right, black 45%, transparent 100%)", maskImage: "linear-gradient(to right, black 45%, transparent 100%)" }}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" />
-                                </svg>
+                              {/* Hover-Overlay: linke Haelfte = Regen, rechte Haelfte = Tausch */}
+                              <div className="absolute inset-0 opacity-0 group-hover/img:opacity-100 transition-opacity flex"
+                                style={{ WebkitMaskImage: "linear-gradient(to right, black 45%, transparent 100%)", maskImage: "linear-gradient(to right, black 45%, transparent 100%)" }}
+                              >
+                                <button
+                                  type="button"
+                                  title="Bild neu generieren"
+                                  className="flex-1 bg-black/50 hover:bg-black/65 flex items-center justify-center cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const regenPrice = billingData?.pricing?.image_regen_price_cents ?? 100;
+                                    setRegenModal({ postId: p.id, postTitle: p.blog_title, imageUrl: p.image_url, regenPrice });
+                                  }}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Bild tauschen (Sammlung oder Upload)"
+                                  className="flex-1 bg-black/50 hover:bg-black/65 flex items-center justify-center cursor-pointer border-l border-white/20"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSwapTab("collection");
+                                    setSwapDescription("");
+                                    setSwapAddToCollection(true);
+                                    setSwapModal({ postId: p.id, postTitle: p.blog_title, imageUrl: p.image_url });
+                                  }}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="12" cy="12" r="3" /><path d="M14 8h.01" />
+                                  </svg>
+                                </button>
                               </div>
                             </>
                           ) : (
-                            <div className="absolute inset-0 bg-red-50 flex items-center justify-center" title="Kein Bild — klicken zum Generieren">
+                            <button
+                              type="button"
+                              className="absolute inset-0 bg-red-50 flex items-center justify-center cursor-pointer"
+                              title="Kein Bild — klicken zum Generieren"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const regenPrice = billingData?.pricing?.image_regen_price_cents ?? 100;
+                                setRegenModal({ postId: p.id, postTitle: p.blog_title, imageUrl: p.image_url, regenPrice });
+                              }}
+                            >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-red-300">
                                 <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="12" cy="12" r="3" />
                               </svg>
-                            </div>
+                            </button>
                           )}
                         </div>
                       </td>
@@ -3611,6 +3728,165 @@ export default function TenantDetailPage() {
       )}
 
       {/* Bild-Regenerierungs-Modal */}
+      {/* Swap-Image-Modal: Sammlung waehlen / Upload */}
+      {swapModal && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => { if (!swapUploadLoading) setSwapModal(null); }}
+        >
+          <div
+            className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm">Bild tauschen</h3>
+                <p className="text-xs text-muted-foreground line-clamp-1">{swapModal.postTitle}</p>
+              </div>
+              <button
+                onClick={() => setSwapModal(null)}
+                disabled={swapUploadLoading}
+                className="text-muted-foreground hover:text-foreground p-1 rounded"
+                title="Schliessen"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-border bg-muted/20">
+              <button
+                onClick={() => setSwapTab("collection")}
+                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                  swapTab === "collection"
+                    ? "text-primary border-b-2 border-primary bg-card"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Aus Sammlung waehlen
+              </button>
+              <button
+                onClick={() => setSwapTab("upload")}
+                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                  swapTab === "upload"
+                    ? "text-primary border-b-2 border-primary bg-card"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Hochladen
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {swapTab === "collection" && (
+                <>
+                  {swapImagesLoading ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {[1,2,3,4,5,6,7,8].map(i => (
+                        <div key={i} className="aspect-square bg-muted rounded-lg animate-pulse" />
+                      ))}
+                    </div>
+                  ) : !swapImages || swapImages.length === 0 ? (
+                    <div className="text-center text-muted-foreground text-sm py-10">
+                      Keine Bilder in der Sammlung. Lade eines im Tab „Hochladen" hoch.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {swapImages.map(img => {
+                        const isCurrent = swapModal.imageUrl && (img.image_url === swapModal.imageUrl);
+                        return (
+                          <button
+                            key={img.id}
+                            type="button"
+                            onClick={() => applyImageFromCollection(img.image_url)}
+                            className={`group relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                              isCurrent ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary"
+                            }`}
+                            title={img.description || ""}
+                          >
+                            <img
+                              src={img.thumb_url || img.image_url}
+                              alt={img.description || ""}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                              <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-medium bg-black/60 px-2 py-1 rounded">
+                                Auswaehlen
+                              </span>
+                            </div>
+                            {isCurrent && (
+                              <span className="absolute top-1 right-1 text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
+                                aktuell
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {swapTab === "upload" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Beschreibung (optional)</label>
+                    <input
+                      type="text"
+                      value={swapDescription}
+                      onChange={e => setSwapDescription(e.target.value)}
+                      placeholder="z.B. Sommer-Aktion Header"
+                      className="form-input w-full"
+                      disabled={swapUploadLoading}
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={swapAddToCollection}
+                      onChange={e => setSwapAddToCollection(e.target.checked)}
+                      disabled={swapUploadLoading}
+                    />
+                    <span>Auch in Tenant-Sammlung speichern (fuer spaetere Wiederverwendung)</span>
+                  </label>
+                  <label
+                    className={`block border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                      swapUploadLoading ? "border-border opacity-60" : "border-border hover:border-primary cursor-pointer"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={swapUploadLoading}
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) uploadAndApplyImage(f);
+                      }}
+                    />
+                    {swapUploadLoading ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-7 h-7 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
+                        <p className="text-sm text-muted-foreground">Wird hochgeladen…</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium">Datei waehlen oder hierher ziehen</p>
+                        <p className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP, max. 25 MB</p>
+                      </>
+                    )}
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {regenModal && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>

@@ -11,12 +11,12 @@ import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { decrypt } from "@/lib/crypto.js";
 import { runRefresher } from "@/lib/pipeline/steps/refresher.js";
+import { checkCronSecret } from "@/lib/cron-auth.js";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req) {
-  const cronSecret = req.headers.get("x-cron-secret");
-  if (cronSecret !== process.env.CRON_SECRET && cronSecret !== "internal") {
+  if (!checkCronSecret(req)) {
     const { requireAdmin } = await import("@/lib/auth");
     const session = await requireAdmin();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

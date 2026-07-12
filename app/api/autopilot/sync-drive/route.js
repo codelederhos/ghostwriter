@@ -6,12 +6,16 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { listDriveImages, downloadAndConvertDriveFile } from "@/lib/google/drive";
+import { checkCronSecret } from "@/lib/cron-auth.js";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req) {
-  const secret = req.headers.get("x-cron-secret");
-  if (secret !== "internal") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!checkCronSecret(req)) {
+    const { requireAdmin } = await import("@/lib/auth");
+    const session = await requireAdmin();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const { rows: tenants } = await query(
     `SELECT ts.tenant_id, ts.drive_folder_id

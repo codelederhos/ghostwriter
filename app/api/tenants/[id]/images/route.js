@@ -6,13 +6,29 @@ import { decrypt } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Auth-Helfer: akzeptiert Cookie-Session (Admin) ODER Bearer-Token
+ * (GHOSTWRITER_ADMIN_TOKEN) für Server-zu-Server-Aufrufe vom baurimmo-Proxy.
+ */
+async function isAuthed(req) {
+  const auth = req.headers.get("authorization") || "";
+  const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : null;
+  const expected = process.env.GHOSTWRITER_ADMIN_TOKEN || "";
+  if (bearer && expected && bearer === expected) {
+    return { id: "bearer", role: "admin", email: "bearer@server" };
+  }
+  return await requireAdmin();
+}
+
 export async function GET(req, { params }) {
-  const session = await requireAdmin();
+  const session = await isAuthed(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = params;
   const { searchParams } = new URL(req.url);
   const parentId = searchParams.get("parent_id");
+  const approvedOnly = searchParams.get("approved_only") === "1";
+  const typeFilter = searchParams.get("type");
 
   // Stammbaum-Query: alle Nachkommen eines Bildes
   if (parentId) {
@@ -28,9 +44,19 @@ export async function GET(req, { params }) {
     return NextResponse.json({ images: rows });
   }
 
+  const where = ["tenant_id = $1"];
+  const vals = [id];
+  let i = 2;
+  if (approvedOnly) {
+    where.push(`approval_status = 'approved'`);
+  }
+  if (typeFilter) {
+    where.push(`type = $${i++}`);
+    vals.push(typeFilter);
+  }
   const { rows } = await query(
-    "SELECT * FROM tenant_reference_images WHERE tenant_id = $1 ORDER BY type, slot_index, created_at",
-    [id]
+    `SELECT * FROM tenant_reference_images WHERE ${where.join(" AND ")} ORDER BY type, slot_index, created_at DESC`,
+    vals
   );
   return NextResponse.json({ images: rows });
 }

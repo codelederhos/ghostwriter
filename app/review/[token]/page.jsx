@@ -1,15 +1,21 @@
 /**
  * Öffentliche Draft-Vorschau per Preview-Token.
  * Zugriff nur mit gültigem Token (sha256-Hash-Vergleich in lib/review/publish.js).
- * Reine Lese-Ansicht — kein Publish-Button (Preview-Token ist nur Lesen).
- * Rendering wie die echte Tenant-Blog-Seite (Hero + blog-prose + BlogWidgets).
+ * Rendering wie die echte Tenant-Blog-Seite (Hero + blog-prose + BlogWidgets)
+ * + Reader-UX (Scroll-Reveal, Floating TOC) + Draft-Aktionen (Sektion neu
+ * generieren, Freigeben) für Posts im Status draft_review.
+ * ?static=1 → Screenshot-Modus ohne Animationen (Bilder eager, Counter sofort).
  */
 
 import { notFound } from "next/navigation";
 import { query } from "@/lib/db";
 import { findPostByReviewToken } from "@/lib/review/publish";
+import { injectH2Ids } from "@/lib/blog/heading-ids";
+import { splitSections } from "@/app/api/admin/drafts/_lib/workspace";
 import BlogWidgets from "@/app/[tenant]/[lang]/blog/[slug]/BlogWidgets";
 import CopyButton from "./CopyButton";
+import ReaderExperience from "./ReaderExperience";
+import DraftActions from "./DraftActions";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +65,7 @@ function scoreBadgeClass(score) {
   return "badge badge-error";
 }
 
-export default async function ReviewPreviewPage({ params }) {
+export default async function ReviewPreviewPage({ params, searchParams }) {
   let token = params?.token || "";
   try {
     token = decodeURIComponent(token);
@@ -74,6 +80,23 @@ export default async function ReviewPreviewPage({ params }) {
     "SELECT id, name, slug, domain FROM tenants WHERE id = $1",
     [post.tenant_id]
   );
+
+  // Screenshot-Modus: keine Animationen, Bilder eager, keine Draft-Buttons
+  const staticMode = searchParams?.static === "1";
+  const showActions = post.status === "draft_review" && !staticMode;
+
+  // Sektions-Metadaten DIREKT aus splitSections — damit sind die Indizes der
+  // "Neu generieren"-Buttons garantiert konsistent mit der API (replaceSection).
+  const sectionsMeta = splitSections(post.blog_body || "").map((s) => ({
+    idx: s.idx,
+    title: s.title,
+    startsWithH2: /^<h2[\s>]/i.test(s.html),
+  }));
+
+  // h2-Anker-IDs für den Floating-TOC serverseitig injizieren (nicht persistiert)
+  // Screenshot-Modus: auch Body-Bilder (Chart, Inline-Figures) eager laden
+  let bodyHtml = injectH2Ids(post.blog_body || "");
+  if (staticMode) bodyHtml = bodyHtml.replace(/loading="lazy"/g, 'loading="eager"');
 
   const qa = parseQa(post.qa_issues);
   const gateStatus = qa?.gate_status || qa?.status || null;
@@ -190,8 +213,16 @@ export default async function ReviewPreviewPage({ params }) {
         )}
 
         {/* Body */}
-        <div className="blog-prose" dangerouslySetInnerHTML={{ __html: post.blog_body || "<p>Noch kein Artikeltext vorhanden.</p>" }} />
-        <BlogWidgets />
+        <div className="blog-prose" dangerouslySetInnerHTML={{ __html: bodyHtml || "<p>Noch kein Artikeltext vorhanden.</p>" }} />
+        <ReaderExperience mode="preview" staticMode={staticMode} raised={showActions} />
+        <BlogWidgets staticMode={staticMode} />
+        {showActions && (
+          <DraftActions
+            token={token}
+            domain={tenant?.domain ? String(tenant.domain).replace(/^https?:\/\//, "").replace(/\/+$/, "") : null}
+            sections={sectionsMeta}
+          />
+        )}
 
         {/* Zweites Artikelbild — nur wenn es nicht schon im Body eingebettet ist */}
         {post.image_url_2 && !(post.blog_body || "").includes(post.image_url_2) && (
@@ -201,7 +232,7 @@ export default async function ReviewPreviewPage({ params }) {
                 src={post.image_url_2}
                 alt={post.image_alt_text_2 || post.blog_title}
                 className="w-full h-full object-cover"
-                loading="lazy"
+                loading={staticMode ? "eager" : "lazy"}
               />
             </div>
             {post.image_alt_text_2 && (
@@ -217,14 +248,17 @@ export default async function ReviewPreviewPage({ params }) {
             <div className="space-y-4">
               {socialCards.map((card) => (
                 <div key={card.key} className="border border-border rounded-xl bg-card p-5 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="font-semibold text-sm">{card.label}</span>
-                    <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
-                    <span className="ml-auto"><CopyButton text={card.text} /></span>
+                  {/* Card-Header: eine Zeile — Label+Badge links (wrappt), Button rechts fest */}
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      <span className="font-semibold text-sm">{card.label}</span>
+                      <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
+                    </div>
+                    <span className="shrink-0"><CopyButton text={card.text} /></span>
                   </div>
                   {postImage && (
                     <div className="rounded-lg overflow-hidden mb-3 aspect-[16/9] max-w-md">
-                      <img src={postImage} alt="Post-Bild" className="w-full h-full object-cover" loading="lazy" />
+                      <img src={postImage} alt="Post-Bild" className="w-full h-full object-cover" loading={staticMode ? "eager" : "lazy"} />
                     </div>
                   )}
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words mb-0">{card.text}</p>
@@ -232,14 +266,17 @@ export default async function ReviewPreviewPage({ params }) {
               ))}
               {post.gbp_text && (
                 <div className="border border-border rounded-xl bg-card p-5 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="font-semibold text-sm">Google Business Post</span>
-                    <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
-                    <span className="ml-auto"><CopyButton text={post.gbp_text} /></span>
+                  {/* Card-Header: eine Zeile — Label+Badge links (wrappt), Button rechts fest */}
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      <span className="font-semibold text-sm">Google Business Post</span>
+                      <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
+                    </div>
+                    <span className="shrink-0"><CopyButton text={post.gbp_text} /></span>
                   </div>
                   {postImage && (
                     <div className="rounded-lg overflow-hidden mb-3 aspect-[16/9] max-w-md">
-                      <img src={postImage} alt="Post-Bild" className="w-full h-full object-cover" loading="lazy" />
+                      <img src={postImage} alt="Post-Bild" className="w-full h-full object-cover" loading={staticMode ? "eager" : "lazy"} />
                     </div>
                   )}
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words mb-3">{post.gbp_text}</p>
@@ -292,7 +329,8 @@ export default async function ReviewPreviewPage({ params }) {
 
           <p className="text-xs text-muted-foreground mt-4 mb-0">
             Diese Vorschau nutzt denselben Blog-Rahmen wie veröffentlichte Artikel.
-            Die Veröffentlichung erfolgt ausschließlich über den Freigabe-Link aus der Benachrichtigung.
+            Die Veröffentlichung erfolgt über den grünen Freigeben-Button in dieser Vorschau
+            oder den Freigabe-Link aus der Benachrichtigung.
           </p>
         </section>
       </article>
