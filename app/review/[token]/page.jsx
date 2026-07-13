@@ -14,6 +14,7 @@ import { injectH2Ids } from "@/lib/blog/heading-ids";
 import { splitSections } from "@/app/api/admin/drafts/_lib/workspace";
 import BlogWidgets from "@/app/[tenant]/[lang]/blog/[slug]/BlogWidgets";
 import CopyButton from "./CopyButton";
+import PostKitButton from "./PostKitButton";
 import ReaderExperience from "./ReaderExperience";
 import DraftActions from "./DraftActions";
 
@@ -259,6 +260,7 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
                         <a href={postImage} download className="btn btn-outline text-xs px-3 py-1.5 no-underline">Bild laden</a>
                       )}
                       <CopyButton text={card.text} />
+                      <PostKitButton platform={card.key} text={card.text} imageUrl={postImage} articleUrl={blogUrlForCta} />
                     </span>
                   </div>
                   {postImage && (
@@ -282,6 +284,7 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
                         <a href={postImage} download className="btn btn-outline text-xs px-3 py-1.5 no-underline">Bild laden</a>
                       )}
                       <CopyButton text={post.gbp_text} />
+                      <PostKitButton platform="gbp" text={post.gbp_text} imageUrl={postImage} articleUrl={blogUrlForCta} />
                     </span>
                   </div>
                   {postImage && (
