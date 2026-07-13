@@ -200,9 +200,6 @@ export default function ReaderExperience({ mode = "live", staticMode = false, ra
           <line x1="4" y1="12" x2="14" y2="12" />
           <line x1="4" y1="17" x2="17" y2="17" />
         </svg>
-        {restLabel && !open && (
-          <span className="gw-toc-fab__label" aria-hidden="true">{restLabel}</span>
-        )}
       </button>
 
       {/* Backdrop (mobil abgedunkelt, Desktop transparent — Klick schließt) */}
