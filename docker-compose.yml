@@ -30,8 +30,11 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-https://ghostwriter.code-lederhos.de}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_OAUTH_TOKEN: ${CLAUDE_OAUTH_TOKEN:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      QUICKCHART_URL: ${QUICKCHART_URL:-http://192.168.32.4:3400}
+      QUICKCHART_URL: ${QUICKCHART_URL:-http://quickchart:3400}
+      IMGSTUDIO_URL: ${IMGSTUDIO_URL:-https://img-studio-local.code-lederhos.de}
+      IMGSTUDIO_TOKEN: ${IMGSTUDIO_TOKEN}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
@@ -42,12 +45,42 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      GHOSTWRITER_ADMIN_TOKEN: ${GHOSTWRITER_ADMIN_TOKEN:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      SEO_SYNC_TOKEN: ${SEO_SYNC_TOKEN:-}
+      MIN_PUBLISH_SCORE: ${MIN_PUBLISH_SCORE:-7}
+      # KI-Bildgenerierung (Tab "KI generieren" im baurimmo Hero-Modal)
+      # Wenn ENV nicht gesetzt: Code faellt auf /app/secrets/<file> zurueck.
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      FAL_API_KEY: ${FAL_API_KEY:-}
     volumes:
       - uploads:/app/public/uploads
       - /opt/ghostwriter/secrets:/app/secrets:ro
     ports:
       - "127.0.0.1:3200:3200"
+    networks:
+      - default
+      - openclaw_openclaw-net
+
+
+  browserless:
+    image: ghcr.io/browserless/chromium:latest
+    restart: unless-stopped
+    environment:
+      TOKEN: ${BROWSERLESS_TOKEN:-ghostwriter-qa}
+      CONCURRENT: 2
+      TIMEOUT: 30000
+    init: true
+    networks:
+      - default
 
 volumes:
   pgdata:
   uploads:
+
+networks:
+  default:
+    driver: bridge
+  openclaw_openclaw-net:
+    external: true

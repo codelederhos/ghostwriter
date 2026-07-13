@@ -254,7 +254,12 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
                       <span className="font-semibold text-sm">{card.label}</span>
                       <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
                     </div>
-                    <span className="shrink-0"><CopyButton text={card.text} /></span>
+                    <span className="shrink-0 flex items-center gap-2">
+                      {postImage && (
+                        <a href={postImage} download className="btn btn-outline text-xs px-3 py-1.5 no-underline">Bild laden</a>
+                      )}
+                      <CopyButton text={card.text} />
+                    </span>
                   </div>
                   {postImage && (
                     <div className="rounded-lg overflow-hidden mb-3 aspect-[16/9] max-w-md">
@@ -272,7 +277,12 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
                       <span className="font-semibold text-sm">Google Business Post</span>
                       <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
                     </div>
-                    <span className="shrink-0"><CopyButton text={post.gbp_text} /></span>
+                    <span className="shrink-0 flex items-center gap-2">
+                      {postImage && (
+                        <a href={postImage} download className="btn btn-outline text-xs px-3 py-1.5 no-underline">Bild laden</a>
+                      )}
+                      <CopyButton text={post.gbp_text} />
+                    </span>
                   </div>
                   {postImage && (
                     <div className="rounded-lg overflow-hidden mb-3 aspect-[16/9] max-w-md">
