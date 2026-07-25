@@ -105,7 +105,10 @@ body {
     @apply my-6 rounded-xl overflow-hidden;
   }
   .blog-prose figure.article-figure img {
-    @apply w-full object-cover;
+    @apply w-full;
+    display: block;
+    height: auto;
+    object-fit: cover;
     max-height: 480px;
   }
 
@@ -685,15 +688,29 @@ body {
   100% { opacity: 0; transform: scale(0.7) translateX(30px); filter: blur(4px); }
 }
 
-/* Blog: Chart.js Container */
-.gw-chart { margin: 2rem 0; border-radius: 12px; border: 1px solid hsl(var(--border)); padding: 1.5rem 1.25rem; background: hsl(var(--muted)); max-width: 100%; overflow-x: auto; }
-.gw-chart canvas { max-width: 100%; min-height: 280px; }
-@media (max-width: 640px) { .gw-chart { padding: 1rem 0.75rem; } .gw-chart canvas { min-height: 240px; } }
-.gw-chart canvas { display: block; max-height: 420px; }
+/* Blog: redaktioneller Chart-Container */
+.gw-chart {
+  width: min(100%, 860px);
+  margin: 2.75rem auto;
+  border-radius: 16px;
+  border: 1px solid hsl(var(--border));
+  padding: 1.5rem;
+  background: hsl(var(--background));
+  box-shadow: 0 16px 42px hsl(var(--foreground) / 0.08);
+  max-width: 100%;
+  overflow: hidden;
+}
+.gw-chart canvas { display: block; width: 100%; max-width: 100%; min-height: 280px; max-height: 480px; }
 .gw-chart script { display: none; }
 /* Chart-Titel als HTML über dem Bild (statt im PNG — kollidiert dort mit Legende) */
-.gw-chart__title { font-weight: 600; font-size: 0.875rem; line-height: 1.35; margin: 0 0 0.75rem; color: hsl(var(--foreground)); }
-.gw-chart img { display: block; max-width: 100%; height: auto; border-radius: 8px; }
+.gw-chart__title { font-weight: 700; font-size: clamp(1rem, 1.4vw, 1.2rem); line-height: 1.35; margin: 0 0 1rem; color: hsl(var(--foreground)); }
+.gw-chart img { display: block; width: 100%; max-width: 100%; height: auto; object-fit: contain; border-radius: 10px; }
+.gw-chart__meta { margin: 0.85rem 0 0; font-size: 0.75rem; line-height: 1.45; color: hsl(var(--muted-foreground)); }
+.gw-chart__meta a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 640px) {
+  .gw-chart { margin: 2rem 0; padding: 1rem 0.75rem; border-radius: 12px; box-shadow: none; }
+  .gw-chart canvas { min-height: 240px; }
+}
 
 /* Blog: sichtbarer Button-CTA (Standalone-Button im Artikelverlauf) */
 .cta-button {
