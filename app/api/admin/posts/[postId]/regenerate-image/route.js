@@ -33,7 +33,8 @@ export async function POST(req, { params }) {
   if (decrypted.billing_mode === "platform") {
     decrypted.text_api_key = process.env.ANTHROPIC_API_KEY;
     decrypted.text_provider = "anthropic";
-    if (process.env.OPENAI_API_KEY) {
+    // dalle3 nur als Fallback, wenn der Tenant keinen eigenen Provider hat — imgstudio/stock nie überschreiben
+    if (process.env.OPENAI_API_KEY && (!decrypted.image_provider || decrypted.image_provider === "dalle3")) {
       decrypted.image_api_key = process.env.OPENAI_API_KEY;
       decrypted.image_provider = "dalle3";
     }

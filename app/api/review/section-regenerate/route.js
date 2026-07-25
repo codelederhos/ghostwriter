@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import { findPostByReviewToken } from "@/lib/review/publish";
 import { getClientIp } from "@/lib/rate-limit";
+import { syncReviewDraftToClient } from "@/lib/pipeline/steps/publisher.js";
 import {
   regenerateSectionHtml,
   replaceSection,
@@ -96,6 +97,11 @@ export async function POST(req) {
     // Direkt persistieren: Sektion im Gesamt-Body ersetzen und speichern
     const newBody = replaceSection(post.blog_body || "", idx, newHtml);
     await saveBlogBody(post.id, newBody);
+    // Client-Draft-Kopie (review_flow='client') mitziehen — sonst genehmigt
+    // der Kunde einen anderen Stand (Audit 17.07.2026)
+    syncReviewDraftToClient(post.id).catch((err) =>
+      console.error("[section-regenerate] Client-Draft-Sync:", err?.message || err)
+    );
 
     return NextResponse.json({ ok: true, new_html: newHtml });
   } catch (e) {

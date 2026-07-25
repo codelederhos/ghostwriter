@@ -48,7 +48,7 @@ function parseQa(value) {
 
 function gateLabel(status) {
   if (status === "ready_for_approval") return "Bereit zur Freigabe";
-  if (status === "review") return "Review empfohlen";
+  if (status === "review") return "Bitte prüfen & freigeben";
   if (status === "needs_revision") return "Nacharbeit nötig";
   return "Offen";
 }
@@ -166,50 +166,53 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
       )}
 
       {/* Article — Rendering wie die echte Blog-Seite */}
-      <article className="max-w-3xl mx-auto px-6 py-12 min-w-0">
-        <div className="mb-6">
-          <p className="text-sm text-muted-foreground mb-2 flex flex-wrap items-center gap-2">
-            {post.category && <span>{post.category}</span>}
-            {post.category && <span className="text-muted-foreground/40">&middot;</span>}
-            <span>{fmtDatumDE(post.created_at)}</span>
-            <span className="text-muted-foreground/40">&middot;</span>
-            <span>{readingMinutes} min Lesezeit</span>
-            {post.language && (
-              <>
-                <span className="text-muted-foreground/40">&middot;</span>
-                <span className="uppercase tracking-wider">{post.language}</span>
-              </>
-            )}
-          </p>
-          <h1 className="text-3xl font-bold leading-tight mb-3 break-words">{post.blog_title}</h1>
-          {post.blog_meta_description && (
-            <p className="text-lg text-muted-foreground">{post.blog_meta_description}</p>
-          )}
-        </div>
-
-        {/* Hero-Bild */}
+      <article className="max-w-3xl mx-auto px-6 py-8 min-w-0">
+        {/* Blend-Hero: Titelbild läuft unten in die Seite aus, Titel + Meta darauf */}
         {post.image_url ? (
-          <div className="rounded-xl overflow-hidden mb-8 aspect-[16/9]">
-            <img
-              src={post.image_url}
-              alt={post.image_alt_text || post.blog_title}
-              className="w-full h-full object-cover"
-              width={1536}
-              height={864}
-              fetchPriority="high"
-            />
-          </div>
+          <>
+            <div className="gw-hero">
+              <img
+                className="gw-hero__img"
+                src={post.image_url}
+                alt={post.image_alt_text || post.blog_title}
+                width={1536}
+                height={864}
+                fetchPriority="high"
+              />
+              <div className="gw-hero__scrim" />
+              <div className="gw-hero__content">
+                <span className="gw-hero__badge">{post.category || "Blog"}</span>
+                <h1 className="gw-hero__title">{post.blog_title}</h1>
+                <p className="gw-hero__meta">
+                  <span>{fmtDatumDE(post.created_at)}</span>
+                  <span className="dot">&middot;</span>
+                  <span>{readingMinutes} min Lesezeit</span>
+                  {post.language && (
+                    <>
+                      <span className="dot">&middot;</span>
+                      <span className="uppercase tracking-wider">{post.language}</span>
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+            {post.blog_meta_description && (
+              <p className="gw-hero-lead">{post.blog_meta_description}</p>
+            )}
+          </>
         ) : (
-          <div
-            className="rounded-xl overflow-hidden mb-8 aspect-[16/9] bg-muted flex items-center justify-center w-full max-w-full"
-            role="img"
-            aria-label={post.image_alt_text || post.blog_title}
-          >
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted-foreground/30">
-              <rect x="3" y="5" width="18" height="14" rx="2" />
-              <circle cx="12" cy="12" r="3.5" />
-              <path d="M7 5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1" />
-            </svg>
+          <div className="mb-6">
+            <p className="text-sm text-muted-foreground mb-2 flex flex-wrap items-center gap-2">
+              {post.category && <span>{post.category}</span>}
+              {post.category && <span className="text-muted-foreground/40">&middot;</span>}
+              <span>{fmtDatumDE(post.created_at)}</span>
+              <span className="text-muted-foreground/40">&middot;</span>
+              <span>{readingMinutes} min Lesezeit</span>
+            </p>
+            <h1 className="text-3xl font-bold leading-tight mb-3 break-words">{post.blog_title}</h1>
+            {post.blog_meta_description && (
+              <p className="text-lg text-foreground/80">{post.blog_meta_description}</p>
+            )}
           </div>
         )}
 
@@ -222,6 +225,7 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
             token={token}
             domain={tenant?.domain ? String(tenant.domain).replace(/^https?:\/\//, "").replace(/\/+$/, "") : null}
             sections={sectionsMeta}
+            images={{ url1: post.image_url || null, url2: post.image_url_2 || null }}
           />
         )}
 
@@ -249,13 +253,10 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
             <div className="space-y-4">
               {socialCards.map((card) => (
                 <div key={card.key} className="border border-border rounded-xl bg-card p-5 min-w-0">
-                  {/* Card-Header: eine Zeile — Label+Badge links (wrappt), Button rechts fest */}
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <div className="flex flex-wrap items-center gap-2 min-w-0">
-                      <span className="font-semibold text-sm">{card.label}</span>
-                      <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
-                    </div>
-                    <span className="shrink-0 flex items-center gap-2">
+                  {/* Card-Header: Titel + Buttons wrappen auf Mobil, Badge in eigener Zeile darunter */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <span className="font-semibold text-sm">{card.label}</span>
+                    <span className="flex flex-wrap items-center gap-2">
                       {postImage && (
                         <a href={postImage} download className="btn btn-outline text-xs px-3 py-1.5 no-underline">Bild laden</a>
                       )}
@@ -263,6 +264,7 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
                       <PostKitButton platform={card.key} text={card.text} imageUrl={postImage} articleUrl={blogUrlForCta} />
                     </span>
                   </div>
+                  <div className="mb-2"><span className="badge badge-neutral">wird erst nach Freigabe gepostet</span></div>
                   {postImage && (
                     <div className="rounded-lg overflow-hidden mb-3 aspect-[16/9] max-w-md">
                       <img src={postImage} alt="Post-Bild" className="w-full h-full object-cover" loading={staticMode ? "eager" : "lazy"} />
@@ -273,13 +275,10 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
               ))}
               {post.gbp_text && (
                 <div className="border border-border rounded-xl bg-card p-5 min-w-0">
-                  {/* Card-Header: eine Zeile — Label+Badge links (wrappt), Button rechts fest */}
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <div className="flex flex-wrap items-center gap-2 min-w-0">
-                      <span className="font-semibold text-sm">Google Business Post</span>
-                      <span className="badge badge-neutral">wird erst nach Freigabe gepostet</span>
-                    </div>
-                    <span className="shrink-0 flex items-center gap-2">
+                  {/* Card-Header: Titel + Buttons wrappen auf Mobil, Badge in eigener Zeile darunter */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <span className="font-semibold text-sm">Google Business Post</span>
+                    <span className="flex flex-wrap items-center gap-2">
                       {postImage && (
                         <a href={postImage} download className="btn btn-outline text-xs px-3 py-1.5 no-underline">Bild laden</a>
                       )}
@@ -287,6 +286,7 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
                       <PostKitButton platform="gbp" text={post.gbp_text} imageUrl={postImage} articleUrl={blogUrlForCta} />
                     </span>
                   </div>
+                  <div className="mb-2"><span className="badge badge-neutral">wird erst nach Freigabe gepostet</span></div>
                   {postImage && (
                     <div className="rounded-lg overflow-hidden mb-3 aspect-[16/9] max-w-md">
                       <img src={postImage} alt="Post-Bild" className="w-full h-full object-cover" loading={staticMode ? "eager" : "lazy"} />

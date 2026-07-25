@@ -18,9 +18,10 @@ export async function POST(req) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Nur 'auto'-Tenants erzeugt der Basis-Scheduler. 'review'-Tenants (z.B. Baurimmo)
-  // bekommen ihre Artikel ausschliesslich ueber den SEO-Scout/Themen-Wunsch als Draft
-  // in die Telegram-Freigabe. Default 'auto' laesst bestehende Tenants unveraendert.
+  // 'auto'-Tenants publizieren direkt. 'review'-Tenants erzeugen im gleichen
+  // Takt (frequency_hours) einen Draft in der Telegram-Freigabe — nie live,
+  // reviewMode unten erzwingt draft_review. (Stani 14.07.2026: tägliche
+  // Artikel für alle Tenants; Scout-Kandidaten kommen on top.)
   const { rows: dueTenants } = await query(
     `SELECT t.id, t.name, ts.telegram_bot_token, ts.telegram_chat_id,
             COALESCE(NULLIF(ts.publish_mode, ''), 'auto') AS publish_mode
@@ -28,7 +29,7 @@ export async function POST(req) {
      JOIN tenant_settings ts ON ts.tenant_id = t.id
      WHERE ts.is_active = true
        AND t.status = 'active'
-       AND COALESCE(NULLIF(ts.publish_mode, ''), 'auto') = 'auto'
+       AND COALESCE(NULLIF(ts.publish_mode, ''), 'auto') IN ('auto', 'review')
        AND (ts.next_run_at IS NULL OR ts.next_run_at <= NOW())`
   );
 
@@ -36,6 +37,18 @@ export async function POST(req) {
 
   for (const tenant of dueTenants) {
     try {
+      // Atomarer Claim: next_run_at SOFORT fortschreiben, bevor die Pipeline
+      // startet — verhindert Doppel-Läufe durch parallele/schnelle Scheduler-Ticks
+      // (die Pipeline läuft Minuten, der finale next_run_at-Write kam zu spät).
+      const { rows: claimed } = await query(
+        `UPDATE tenant_settings
+         SET next_run_at = NOW() + (COALESCE(frequency_hours, 72) || ' hours')::interval
+         WHERE tenant_id = $1 AND (next_run_at IS NULL OR next_run_at <= NOW())
+         RETURNING tenant_id`,
+        [tenant.id]
+      );
+      if (!claimed.length) continue; // ein anderer Lauf hat diesen Tenant schon geclaimt
+
       // Sicherheit: nur Tenants mit publish_mode='auto' veröffentlichen automatisch.
       // Default 'review' → Draft geht in die Freigabe-Strecke (Telegram), kein Live-Publish.
       const reviewMode = (tenant.publish_mode || "review") !== "auto";

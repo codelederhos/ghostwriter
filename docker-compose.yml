@@ -55,7 +55,7 @@ services:
       CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
       FAL_API_KEY: ${FAL_API_KEY:-}
     volumes:
-      - uploads:/app/public/uploads
+      - /opt/ghostwriter-uploads:/app/public/uploads
       - /opt/ghostwriter/secrets:/app/secrets:ro
     ports:
       - "127.0.0.1:3200:3200"

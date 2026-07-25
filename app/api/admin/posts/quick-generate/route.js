@@ -1,6 +1,18 @@
+import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { runPipeline } from "@/lib/pipeline/index.js";
+
+// In-Flight-Dedup: Doppelklick im Scout-UI / Caller-Retry startete zwei
+// parallele Pipelines für denselben Kandidaten (Audit 17.07.2026).
+const inFlight = new Map(); // key -> startedAt
+const IN_FLIGHT_TTL_MS = 2 * 60 * 60 * 1000;
+
+function timingSafeEquals(a, b) {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
 
 function firstText(...values) {
   for (const value of values) {
@@ -43,8 +55,9 @@ function briefLines(value, prefix = "") {
 
 function serializeBriefing({ brief, briefingText, qaHints, opportunityId, briefId }) {
   const parts = [];
+  parts.push("INTERNES BRIEFING — reine Steuerungsinformation. NIEMALS als Artikelinhalt, Sektion, Checkliste oder Kasten übernehmen; interne Projekt-/Markennamen daraus nie erwähnen.");
   if (brief && typeof brief === "object") {
-    parts.push("AUSARBEITUNGSNOTIZ AUS BAURIMMO");
+    parts.push("AUSARBEITUNGSNOTIZ");
     parts.push(...briefLines(brief));
   }
   if (briefingText) {
@@ -77,7 +90,7 @@ export async function POST(req) {
   const expectedToken = process.env.GHOSTWRITER_ADMIN_TOKEN || "";
   let isAuthed = false;
 
-  if (bearer && expectedToken && bearer === expectedToken) {
+  if (bearer && expectedToken && timingSafeEquals(bearer, expectedToken)) {
     isAuthed = true;
   } else {
     const session = await requireAdmin();
@@ -145,6 +158,20 @@ export async function POST(req) {
     qaHints: qaHints || brief?.publishRisk || brief?.publish_risk || null,
   };
 
+  // Dedup pro Kandidat: briefId/opportunityId, sonst Titel
+  const dedupKey = `${tenantId}:${override.briefId || override.opportunityId || forcedTitle.toLowerCase()}`;
+  const now = Date.now();
+  for (const [k, t] of inFlight) { if (now - t > IN_FLIGHT_TTL_MS) inFlight.delete(k); }
+  if (inFlight.has(dedupKey)) {
+    return NextResponse.json({
+      ok: true,
+      status: "already_running",
+      message: "Für diesen Kandidaten läuft bereits eine Generierung.",
+      title: override.forcedTitle,
+    }, { status: 409 });
+  }
+  inFlight.set(dedupKey, now);
+
   runPipeline(tenantId, {
     preview: false,
     reviewMode: isReviewMode,
@@ -153,7 +180,7 @@ export async function POST(req) {
     isTest: false,
   }).catch((err) =>
     console.error("[quick-generate] Pipeline error:", err?.message || err)
-  );
+  ).finally(() => inFlight.delete(dedupKey));
 
   return NextResponse.json({
     ok: true,

@@ -172,54 +172,67 @@ export default async function BlogPostPage({ params, searchParams }) {
         )}
 
         {/* Article */}
-        <article className="max-w-3xl mx-auto px-6 py-12">
-          {/* Meta */}
-          <div className="mb-6">
-            <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
-              <span>{post.category}</span>
-              <span className="text-muted-foreground/40">&middot;</span>
-              <span>{new Date(post.published_at || post.created_at).toLocaleDateString(lang, { year: "numeric", month: "long", day: "numeric" })}</span>
-              <span className="text-muted-foreground/40">&middot;</span>
-              <span>{readingMinutes} min Lesezeit</span>
-              {post.updated_at && post.published_at && new Date(post.updated_at) > new Date(post.published_at) && (
-                <>
-                  <span className="text-muted-foreground/40">&middot;</span>
-                  <span className="text-xs">Aktualisiert {new Date(post.updated_at).toLocaleDateString(lang, { year: "numeric", month: "long", day: "numeric" })}</span>
-                </>
-              )}
-            </p>
-            <h1 className="text-3xl font-bold leading-tight mb-3">{post.blog_title}</h1>
-            {post.blog_meta_description && (
-              <p className="text-lg text-muted-foreground">{post.blog_meta_description}</p>
-            )}
-          </div>
-
-          {/* Image */}
+        <article className="max-w-3xl mx-auto px-6 py-8">
+          {/* Blend-Hero: Titelbild läuft unten in die Seite aus, Titel + Meta darauf */}
           {post.image_url ? (
-            <div className="rounded-xl overflow-hidden mb-8 aspect-[16/9]">
-              <img
-                src={post.image_url}
-                alt={post.image_alt_text || post.blog_title}
-                className="w-full h-full object-cover"
-                width={1536}
-                height={864}
-                fetchPriority="high"
-              />
-            </div>
+            <>
+              <div className="gw-hero">
+                <img
+                  className="gw-hero__img"
+                  src={post.image_url}
+                  alt={post.image_alt_text || post.blog_title}
+                  width={1536}
+                  height={864}
+                  fetchPriority="high"
+                />
+                <div className="gw-hero__scrim" />
+                <div className="gw-hero__content">
+                  <span className="gw-hero__badge">{post.category || "Blog"}</span>
+                  <h1 className="gw-hero__title">{post.blog_title}</h1>
+                  <p className="gw-hero__meta">
+                    <span>{new Date(post.published_at || post.created_at).toLocaleDateString(lang, { year: "numeric", month: "long", day: "numeric" })}</span>
+                    <span className="dot">&middot;</span>
+                    <span>{readingMinutes} min Lesezeit</span>
+                    {post.updated_at && post.published_at && new Date(post.updated_at) > new Date(post.published_at) && (
+                      <>
+                        <span className="dot">&middot;</span>
+                        <span className="text-xs">Aktualisiert {new Date(post.updated_at).toLocaleDateString(lang, { year: "numeric", month: "long", day: "numeric" })}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+              {post.blog_meta_description && (
+                <p className="gw-hero-lead">{post.blog_meta_description}</p>
+              )}
+            </>
           ) : (
-            <div
-              className="rounded-xl overflow-hidden mb-8 aspect-[16/9] bg-muted animate-pulse flex items-center justify-center"
-              role="img"
-              aria-label={post.image_alt_text || post.blog_title}
-              data-prompt={post.image_prompt_1 || ""}
-              data-post-id={post.id}
-              style={{ minHeight: "200px" }}
-            >
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted-foreground/30">
-                <rect x="3" y="5" width="18" height="14" rx="2" />
-                <circle cx="12" cy="12" r="3.5" />
-                <path d="M7 5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1" />
-              </svg>
+            <div className="mb-8">
+              <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
+                <span>{post.category}</span>
+                <span className="text-muted-foreground/40">&middot;</span>
+                <span>{new Date(post.published_at || post.created_at).toLocaleDateString(lang, { year: "numeric", month: "long", day: "numeric" })}</span>
+                <span className="text-muted-foreground/40">&middot;</span>
+                <span>{readingMinutes} min Lesezeit</span>
+              </p>
+              <h1 className="text-3xl font-bold leading-tight mb-3">{post.blog_title}</h1>
+              {post.blog_meta_description && (
+                <p className="text-lg text-foreground/80 mb-6">{post.blog_meta_description}</p>
+              )}
+              <div
+                className="rounded-xl overflow-hidden aspect-[16/9] bg-muted animate-pulse flex items-center justify-center"
+                role="img"
+                aria-label={post.image_alt_text || post.blog_title}
+                data-prompt={post.image_prompt_1 || ""}
+                data-post-id={post.id}
+                style={{ minHeight: "200px" }}
+              >
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted-foreground/30">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <circle cx="12" cy="12" r="3.5" />
+                  <path d="M7 5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1" />
+                </svg>
+              </div>
             </div>
           )}
 

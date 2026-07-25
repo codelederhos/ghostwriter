@@ -36,8 +36,19 @@ export default function ReaderExperience({ mode = "live", staticMode = false, ra
   const [activeId, setActiveId] = useState(null);
   const [progress, setProgress] = useState(0);
   const [remainingMin, setRemainingMin] = useState(null);
+  const [fabVisible, setFabVisible] = useState(false);
   const totalMinutesRef = useRef(0);
   const rafRef = useRef(0);
+
+  // FAB erst nach dem ersten Scroll zeigen — sonst überlappt er die erste
+  // Überschrift im Start-Viewport (und brennt sich in Screenshots ein).
+  useEffect(() => {
+    if (staticMode) return; // Screenshot-Modus: FAB bleibt aus
+    const onScroll = () => setFabVisible((window.scrollY || 0) > 160);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [staticMode]);
 
   // Static-Flag SOFORT global setzen, damit BlogWidgets + CSS es sehen.
   // (Zusätzlich bekommen BlogWidgets staticMode als Prop von der Server-Seite.)
@@ -175,10 +186,10 @@ export default function ReaderExperience({ mode = "live", staticMode = false, ra
 
   return (
     <>
-      {/* Floating TOC-Button mit Progress-Ring */}
+      {/* Floating TOC-Button mit Progress-Ring — erst nach Scroll sichtbar */}
       <button
         type="button"
-        className={`gw-toc-fab${raised ? " gw-toc-fab--raised" : ""}`}
+        className={`gw-toc-fab${raised ? " gw-toc-fab--raised" : ""}${fabVisible || open ? "" : " gw-toc-fab--hidden"}`}
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "Inhaltsverzeichnis schließen" : "Inhaltsverzeichnis öffnen"}
         aria-expanded={open}

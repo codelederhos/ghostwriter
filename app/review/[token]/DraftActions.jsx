@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import ImageEditor from "./ImageEditor";
 
 /**
  * Draft-Aktionen in der öffentlichen Preview (nur mode="preview" + status
@@ -26,7 +27,7 @@ import { createPortal } from "react-dom";
  * @param {string} domain  Tenant-Domain für den Confirm-Text
  * @param {Array<{idx:number,title:string,startsWithH2:boolean}>} sections
  */
-export default function DraftActions({ token, domain, sections = [] }) {
+export default function DraftActions({ token, domain, sections = [], images = null }) {
   const [editMode, setEditMode] = useState(false);
   const [slots, setSlots] = useState([]);
   const [mapError, setMapError] = useState(null);
@@ -198,6 +199,13 @@ export default function DraftActions({ token, domain, sections = [] }) {
       {/* Fehler bei der Sektions-Zuordnung */}
       {editMode && mapError && (
         <div className="gw-edit-toast" role="alert">{mapError}</div>
+      )}
+
+      {/* Bild-Editor: generieren / Referenz wählen / hochladen */}
+      {editMode && images && (
+        <div className="gw-imgedit-wrap">
+          <ImageEditor token={token} images={images} />
+        </div>
       )}
 
       {/* Pro Sektion: dezenter "Neu generieren"-Button + Inline-Panel (Portale) */}

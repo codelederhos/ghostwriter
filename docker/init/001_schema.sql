@@ -142,6 +142,11 @@ CREATE TABLE IF NOT EXISTS ghostwriter_posts (
 CREATE INDEX IF NOT EXISTS idx_posts_tenant ON ghostwriter_posts(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_posts_tenant_lang ON ghostwriter_posts(tenant_id, language);
 CREATE INDEX IF NOT EXISTS idx_posts_slug ON ghostwriter_posts(tenant_id, language, blog_slug);
+-- Harte Doppel-Sperre: zwei parallele Läufe mit gleichem Titel passieren sonst
+-- beide den Check-then-Insert-Dedup (Audit 17.07.2026). Partiell, damit
+-- historische rejected-Duplikate nicht kollidieren.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_posts_active_slug ON ghostwriter_posts(tenant_id, language, blog_slug)
+  WHERE status IN ('draft', 'draft_review', 'published');
 CREATE INDEX IF NOT EXISTS idx_posts_status ON ghostwriter_posts(status);
 
 -- ============================================================

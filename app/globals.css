@@ -758,6 +758,9 @@ html[data-gw-static] .gw-toc-panel { transition: none; animation: none; }
 }
 .gw-toc-fab:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18); }
 .gw-toc-fab--raised { bottom: 148px; }
+/* vor dem ersten Scroll unsichtbar — überlappt sonst die erste Überschrift */
+.gw-toc-fab--hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
+[data-gw-static] .gw-toc-fab { display: none; }
 .gw-toc-fab__ring {
   position: absolute;
   inset: 0;
@@ -998,4 +1001,143 @@ html[data-gw-static] .gw-toc-panel { transition: none; animation: none; }
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+/* Lange deutsche Komposita (Immobilienentscheidungen) sauber trennen statt
+   hart ohne Trennstrich umzubrechen — braucht lang="de" am Dokument. */
+h1, .blog-prose h1, .blog-prose h2, .blog-prose h3 {
+  overflow-wrap: break-word;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+/* ── Bild-Editor im Bleistift-Modus ────────────────────── */
+.gw-imgedit-wrap {
+  position: fixed;
+  left: 16px;
+  bottom: 24px;
+  z-index: 70;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  padding: 14px;
+}
+.gw-imgedit__title { font-weight: 600; font-size: 0.85rem; margin: 0 0 10px; }
+.gw-imgedit__slots { display: flex; gap: 10px; }
+.gw-imgedit__slot { flex: 1; min-width: 0; }
+.gw-imgedit__thumb {
+  width: 100%;
+  aspect-ratio: 16/10;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--muted));
+}
+.gw-imgedit__thumb--empty {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; color: hsl(var(--muted-foreground));
+}
+.gw-imgedit__label { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin: 4px 0 6px; }
+.gw-imgedit__buttons { display: flex; flex-direction: column; gap: 4px; }
+.gw-imgedit__panel { margin-top: 12px; border-top: 1px solid hsl(var(--border)); padding-top: 10px; }
+.gw-imgedit__actions { margin-top: 8px; }
+.gw-imgedit__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.gw-imgedit__gridItem {
+  position: relative;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  background: none;
+}
+.gw-imgedit__gridItem img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.gw-imgedit__gridItem:hover { outline: 2px solid hsl(var(--primary)); }
+.gw-imgedit__gridItem--active { outline: 3px solid hsl(var(--primary)); outline-offset: -1px; }
+.gw-imgedit__refpick { margin-top: 10px; }
+.gw-imgedit__refpickLabel { font-size: 12px; color: hsl(var(--muted-foreground)); margin: 0 0 6px; }
+.gw-imgedit__badge {
+  position: absolute; left: 4px; bottom: 4px;
+  font-size: 0.6rem; font-weight: 600;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 4px; padding: 1px 4px;
+}
+
+/* ── Blend-Hero (Titelbild läuft unten weich in die Seite aus — Design von
+     baurimmo übernommen, Stani 15.07.2026: einheitlich für alle Tenants;
+     Meta-Text dunkel, weil er im hellen Auslauf sitzt) ────────────────── */
+.gw-hero {
+  position: relative;
+  width: 100vw; max-width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+  background: hsl(var(--muted));
+}
+.gw-hero__img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.gw-hero__scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top,
+    hsl(var(--background)) 0%,
+    hsl(var(--background) / 0.9) 14%,
+    hsl(var(--background) / 0.55) 30%,
+    rgba(12, 12, 14, 0.25) 60%,
+    rgba(12, 12, 14, 0.05) 85%,
+    rgba(12, 12, 14, 0) 100%);
+}
+.gw-hero__content {
+  position: relative; z-index: 1;
+  min-height: 48vh;
+  max-width: 46rem; margin: 0 auto;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 0.6rem;
+  padding: clamp(3rem, 14vw, 6rem) clamp(1.1rem, 5vw, 1.5rem) clamp(1.2rem, 4vw, 2rem);
+}
+@media (min-width: 1024px) { .gw-hero__content { min-height: 44vh; } }
+.gw-hero__badge {
+  align-self: flex-start;
+  display: inline-flex; align-items: center;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em;
+}
+.gw-hero__title {
+  margin: 0;
+  color: hsl(var(--foreground));
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  font-size: clamp(1.5rem, 5.2vw, 2.6rem);
+  overflow-wrap: break-word;
+  hyphens: auto;
+  text-shadow: 0 1px 14px hsl(var(--background) / 0.85);
+}
+.gw-hero__meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem;
+  color: hsl(var(--foreground) / 0.72);
+  font-size: 0.8rem;
+}
+.gw-hero__meta .dot { opacity: 0.5; }
+/* Meta-Beschreibung unter dem Hero — bewusst dunkel (heller Hintergrund) */
+.gw-hero-lead {
+  max-width: 46rem; margin: 0 auto 2rem;
+  padding: 0 clamp(1.1rem, 5vw, 1.5rem);
+  color: hsl(var(--foreground) / 0.82);
+  font-size: 1.05rem; line-height: 1.6;
 }
