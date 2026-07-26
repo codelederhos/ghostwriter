@@ -17,7 +17,8 @@ const SIZES = [
 
 // POST: Datei hochladen, neues Bild fuer Post setzen,
 // optional als Eintrag in tenant_reference_images speichern.
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

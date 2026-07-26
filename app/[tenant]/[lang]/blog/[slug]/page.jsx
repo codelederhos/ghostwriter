@@ -24,7 +24,8 @@ function extractFAQSchema(html) {
   };
 }
 
-export async function generateMetadata({ params }) {
+export async function generateMetadata(props) {
+  const params = await props.params;
   const { tenant, lang, slug } = params;
   const { rows: [t] } = await query("SELECT id FROM tenants WHERE slug = $1", [tenant]);
   if (!t) return {};
@@ -52,7 +53,9 @@ export async function generateMetadata({ params }) {
   };
 }
 
-export default async function BlogPostPage({ params, searchParams }) {
+export default async function BlogPostPage(props) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const { tenant, lang, slug } = params;
 
   // Screenshot-Modus (?static=1): keine Animationen, Counter sofort auf Endwert
@@ -120,15 +123,12 @@ export default async function BlogPostPage({ params, searchParams }) {
       {/* Canonical + Preload Hero-Image */}
       <link rel="canonical" href={`${baseUrl}/${tenant}/${lang}/blog/${slug}`} />
       {post.image_url && <link rel="preload" as="image" href={post.image_url} />}
-
       {/* Schema.org: BlogPosting */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-
       {/* Schema.org: FAQPage (wenn FAQs vorhanden) */}
       {faqSchema && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       )}
-
       {/* hreflang */}
       {alternates.map((alt) => (
         <link
@@ -138,7 +138,6 @@ export default async function BlogPostPage({ params, searchParams }) {
           href={`${baseUrl}/${tenant}/${alt.language}/blog/${alt.blog_slug}`}
         />
       ))}
-
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="border-b border-border bg-white">

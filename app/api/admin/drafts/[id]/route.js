@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
  * Laedt den Draft, splittet blog_body an <h2>-Grenzen in editierbare
  * Sektionen und liefert { post, sections, qa }.
  */
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

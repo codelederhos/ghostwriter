@@ -18,7 +18,8 @@ export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const { tenant, lang, slug } = params;
 
   const { rows: [t] } = await query(

@@ -19,7 +19,8 @@ export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const { tenant, lang } = params;
   const url = new URL(req.url);
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "10"), 50);

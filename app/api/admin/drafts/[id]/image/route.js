@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
  * Body: { url: string, alt?: string }
  * Setzt Hero-Bild (image_url) und optional image_alt_text.
  */
-export async function PATCH(req, { params }) {
+export async function PATCH(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

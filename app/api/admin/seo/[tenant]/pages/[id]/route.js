@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -60,7 +61,8 @@ export async function GET(req, { params }) {
   return NextResponse.json({ page, diagnostics: diag || null, metrics: metrics30, topQueries });
 }
 
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

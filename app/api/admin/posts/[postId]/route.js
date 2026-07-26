@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 const EDITABLE_FIELDS = ["blog_title_tag", "blog_meta_description", "gbp_text", "social_text"];
 
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -25,7 +26,8 @@ export async function GET(req, { params }) {
   return NextResponse.json({ post: rows[0] });
 }
 
-export async function PATCH(req, { params }) {
+export async function PATCH(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

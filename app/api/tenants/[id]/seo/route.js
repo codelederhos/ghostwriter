@@ -7,7 +7,8 @@ import { generateSeoContent } from "@/lib/pipeline/steps/seo_writer";
 export const dynamic = "force-dynamic";
 
 // ── GET: SEO Hub Daten für einen Tenant ──────────────────────────────
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -104,7 +105,8 @@ export async function GET(req, { params }) {
 }
 
 // ── POST: SEO Hub Actions ────────────────────────────────────────────
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

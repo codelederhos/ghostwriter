@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
  * Body: { reason?: string }
  * Verwerfen: draft_review → rejected (bleibt zur Doku erhalten).
  */
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

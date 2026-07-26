@@ -11,7 +11,8 @@ export const maxDuration = 120;
  * POST /api/admin/drafts/[id]/publish
  * Freigabe: draft_review → published (zentraler Review-Publish-Flow).
  */
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
@@ -51,6 +52,7 @@ export async function POST(req, { params }) {
     blogUrl: result.blogUrl || null,
     alreadyPublished: result.alreadyPublished === true,
     publishError: result.publishError || null,
+    visualQa: result.qaVisual || null,
     post: postPayload(fresh),
     sections: splitSections(fresh?.blog_body || ""),
   });

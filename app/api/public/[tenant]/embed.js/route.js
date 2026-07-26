@@ -12,7 +12,8 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const { tenant } = params;
   const url = new URL(req.url);
   const lang = url.searchParams.get("lang") || "de";

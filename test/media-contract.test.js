@@ -22,3 +22,19 @@ test("legacy article and chart images are normalized without changing their src"
   assert.equal((output.match(/height:auto/g) || []).length, 2);
   assert.equal((output.match(/decoding="async"/g) || []).length, 2);
 });
+
+test("normalization handles unquoted attributes, nesting and is idempotent", () => {
+  const input = [
+    "<FIGURE class=article-figure><span><img src=/a.webp style='height:420px;width:50%;color:red'></span></FIGURE>",
+    "<div class='gw-chart'><div><img src=/c.png class=chart-img loading=eager /></div></div>",
+  ].join("");
+  const once = normalizePublishedMediaHtml(input);
+  const twice = normalizePublishedMediaHtml(once);
+  assert.equal(twice, once);
+  assert.match(once, /class="article-figure gw-media"/i);
+  assert.match(once, /src=\/a\.webp/);
+  assert.match(once, /color:red/);
+  assert.equal((once.match(/height:auto/g) || []).length, 2);
+  assert.equal((once.match(/object-fit:contain/g) || []).length, 1);
+  assert.equal((once.match(/loading="lazy"/g) || []).length, 2);
+});

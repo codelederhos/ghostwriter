@@ -6,7 +6,8 @@ import { query } from "@/lib/db";
  * GET /api/sitemap/{tenant}?format=json|xml
  * Gibt alle published SEO-Pages als Sitemap zurück
  */
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const { tenant } = params;
   const format = new URL(req.url).searchParams.get("format") || "json";
 

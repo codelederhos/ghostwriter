@@ -43,6 +43,7 @@ export default function DraftWorkspace({ draftId }) {
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [publishedUrl, setPublishedUrl] = useState(null);
+  const [visualQa, setVisualQa] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +91,7 @@ export default function DraftWorkspace({ draftId }) {
       const json = await apiJson(`/api/admin/drafts/${draftId}/publish`, { method: "POST" });
       applyUpdate(json);
       setPublishedUrl(json.blogUrl || null);
+      setVisualQa(json.visualQa || null);
       setConfirmAction(null);
       if (json.publishError) setActionError(`Veröffentlicht, aber Publisher-Warnung: ${json.publishError}`);
     } catch (e) {
@@ -277,6 +279,15 @@ export default function DraftWorkspace({ draftId }) {
                   {publishedUrl || post.blog_url} <ExternalLink size={13} />
                 </a>
               </div>
+            )}
+            {visualQa && (
+              <p className={`mt-3 break-words text-sm ${visualQa.ok ? "text-emerald-700" : "text-amber-700"}`}>
+                {visualQa.ok
+                  ? `Visuelle Live-Prüfung bestanden (${visualQa.findings?.score ?? "–"}/100).`
+                  : visualQa.executed
+                    ? `Visuelle Live-Prüfung meldet Nacharbeit (${visualQa.findings?.score ?? "–"}/100).`
+                    : "Visuelle Live-Prüfung konnte nicht abgeschlossen werden."}
+              </p>
             )}
             {post.status === "rejected" && (
               <p className="mt-3 text-sm text-red-700">

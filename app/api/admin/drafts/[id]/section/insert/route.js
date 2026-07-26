@@ -24,7 +24,8 @@ export const maxDuration = 120;
  * Entweder fertiges html (wird sanitized) ODER prompt → KI erzeugt die Sektion
  * ueber den Tenant-Provider. Persistiert und liefert post + sections + new_idx.
  */
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

@@ -22,7 +22,8 @@ function parseIdx(value) {
  * Body: { html: string }
  * Ueberschreibt die Sektion idx im blog_body (serverseitig sanitized).
  */
-export async function PATCH(req, { params }) {
+export async function PATCH(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
@@ -68,7 +69,8 @@ export async function PATCH(req, { params }) {
  * DELETE /api/admin/drafts/[id]/section/[idx]
  * Entfernt die Sektion idx und setzt blog_body aus den uebrigen neu zusammen.
  */
-export async function DELETE(req, { params }) {
+export async function DELETE(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

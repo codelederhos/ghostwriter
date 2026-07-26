@@ -9,6 +9,7 @@ export const metadata = { title: "Draft-Review — Ghostwriter Admin" };
  * Auth laeuft ueber das Admin-Layout (redirect auf /login ohne Admin-Session);
  * alle Daten kommen client-seitig aus den requireAdmin-gesicherten APIs.
  */
-export default function DraftDetailPage({ params }) {
-  return <DraftWorkspace draftId={params.id} />;
+export default async function DraftDetailPage(props) {
+ const params = await props.params;
+ return <DraftWorkspace draftId={params.id} />;
 }

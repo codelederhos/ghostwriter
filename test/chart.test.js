@@ -35,3 +35,18 @@ test("chart embed is responsive and exposes provenance", () => {
 test("known tenants receive distinct palettes", () => {
   assert.notDeepEqual(getChartTheme({ slug: "staned" }).palette, getChartTheme({ slug: "baur-immobilien" }).palette);
 });
+
+test("inline chart JSON cannot break out of its script element", () => {
+  const html = buildChartEmbedHtml({
+    title: "Sicher",
+    configJson: '{"label":"</script><img src=x onerror=alert(1)>"}',
+    sources: [
+      { url: "javascript:alert(1)", title: "Unsicher" },
+      { url: "https://example.test/source", title: "Sicher" },
+    ],
+  });
+  assert.doesNotMatch(html, /<\/script><img/i);
+  assert.match(html, /\\u003c\/script\\u003e/);
+  assert.doesNotMatch(html, /javascript:/i);
+  assert.match(html, /https:\/\/example\.test\/source/);
+});

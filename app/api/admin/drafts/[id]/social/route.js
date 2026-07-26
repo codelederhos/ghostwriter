@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
  * linkedin/facebook/instagram werden ins social_text-JSONB gemergt,
  * gbp_text ist eine eigene Spalte. Liefert post + sections zurueck.
  */
-export async function PATCH(req, { params }) {
+export async function PATCH(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

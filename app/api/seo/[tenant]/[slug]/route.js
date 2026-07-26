@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
  *
  * Response: { found, slug, lang, title, h1, meta_description, intro_html, local_html, practical_html, faq, schema_org, image_alts, internal_links, hreflang }
  */
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const { tenant: tenantSlug, slug: pageSlug } = params;
   const { searchParams } = new URL(req.url);
   const lang = searchParams.get("lang") || "de";

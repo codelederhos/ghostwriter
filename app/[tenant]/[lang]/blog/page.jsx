@@ -2,7 +2,8 @@ import { query } from "@/lib/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export async function generateMetadata({ params }) {
+export async function generateMetadata(props) {
+  const params = await props.params;
   const { tenant, lang } = params;
   const { rows: [t] } = await query("SELECT name FROM tenants WHERE slug = $1", [tenant]);
   if (!t) return {};
@@ -12,7 +13,9 @@ export async function generateMetadata({ params }) {
   };
 }
 
-export default async function BlogListPage({ params, searchParams }) {
+export default async function BlogListPage(props) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const { tenant, lang } = params;
   const page = parseInt(searchParams?.page || "1", 10);
 

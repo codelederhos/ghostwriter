@@ -5,7 +5,8 @@ import { requireAdmin } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 // PATCH: Bild aus Sammlung waehlen oder direkt eine URL setzen
-export async function PATCH(req, { params }) {
+export async function PATCH(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

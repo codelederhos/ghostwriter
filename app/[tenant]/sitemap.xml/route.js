@@ -1,6 +1,7 @@
 import { query } from "@/lib/db";
 
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const { tenant } = params;
 
   const { rows: [t] } = await query(

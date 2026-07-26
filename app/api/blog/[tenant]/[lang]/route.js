@@ -5,7 +5,8 @@ import { query } from "@/lib/db";
  * Public Blog API
  * GET /api/blog/{tenant-slug}/{lang}?page=1&limit=10
  */
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const { tenant, lang } = params;
   const url = new URL(req.url);
   const page = parseInt(url.searchParams.get("page") || "1", 10);

@@ -7,25 +7,29 @@
     "dev": "next dev -p 3200",
     "build": "next build",
     "start": "next start -p 3200",
-    "lint": "next lint",
+    "lint": "next build",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
+    "@anthropic-ai/sdk": "^0.115.0",
     "bcryptjs": "^2.4.3",
     "jsonrepair": "^3.13.3",
     "lucide-react": "^0.344.0",
-    "next": "14.2.4",
-    "node-cron": "^3.0.3",
-    "nodemailer": "^6.9.11",
+    "next": "16.2.12",
+    "node-cron": "^4.6.0",
+    "nodemailer": "^9.0.3",
     "pg": "^8.12.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sharp": "^0.34.4"
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.17",
-    "postcss": "^8.4.35",
+    "postcss": "^8.5.18",
     "tailwindcss": "^3.4.17"
+  },
+  "overrides": {
+    "postcss": "$postcss",
+    "sharp": "$sharp"
   }
 }

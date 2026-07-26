@@ -15,7 +15,8 @@ export const maxDuration = 120;
  * Generiert ein neues Hero-Bild ueber den Tenant-Bild-Provider (loadTenant +
  * generateImage) und setzt image_url am Post.
  */
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

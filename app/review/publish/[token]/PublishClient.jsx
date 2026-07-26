@@ -61,6 +61,15 @@ export default function PublishClient({ token }) {
             Das Team prüft das automatisch.
           </p>
         )}
+        {result?.visualQa && (
+          <p className={`text-xs mt-3 mb-0 ${result.visualQa.ok ? "text-emerald-800" : "text-amber-800"}`}>
+            {result.visualQa.ok
+              ? `Visuelle Live-Prüfung bestanden (${result.visualQa.findings?.score ?? "–"}/100).`
+              : result.visualQa.executed
+                ? `Visuelle Live-Prüfung meldet Nacharbeit (${result.visualQa.findings?.score ?? "–"}/100). Das Team wurde informiert.`
+                : "Visuelle Live-Prüfung konnte nicht abgeschlossen werden. Das Team wurde informiert."}
+          </p>
+        )}
       </div>
     );
   }

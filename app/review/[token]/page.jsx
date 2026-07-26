@@ -66,7 +66,9 @@ function scoreBadgeClass(score) {
   return "badge badge-error";
 }
 
-export default async function ReviewPreviewPage({ params, searchParams }) {
+export default async function ReviewPreviewPage(props) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   let token = params?.token || "";
   try {
     token = decodeURIComponent(token);
@@ -140,7 +142,6 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
           <span className="badge badge-neutral">Vorschau</span>
         </div>
       </header>
-
       {/* Status-Banner */}
       {isPublished ? (
         <div className="bg-emerald-50 border-b border-emerald-200 px-6 py-2.5 text-center">
@@ -164,7 +165,6 @@ export default async function ReviewPreviewPage({ params, searchParams }) {
           </span>
         </div>
       )}
-
       {/* Article — Rendering wie die echte Blog-Seite */}
       <article className="max-w-3xl mx-auto px-6 py-8 min-w-0">
         {/* Blend-Hero: Titelbild läuft unten in die Seite aus, Titel + Meta darauf */}

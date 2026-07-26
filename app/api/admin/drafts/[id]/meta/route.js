@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
  * Body: { title?, title_tag?, meta_description?, slug? }
  * Aktualisiert Meta-Spalten des Posts. Liefert post + sections zurueck.
  */
-export async function PATCH(req, { params }) {
+export async function PATCH(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

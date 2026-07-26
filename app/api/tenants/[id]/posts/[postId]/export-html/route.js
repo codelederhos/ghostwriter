@@ -5,7 +5,8 @@ import { generateBlogHtml } from "@/lib/utils/blog-html-export";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

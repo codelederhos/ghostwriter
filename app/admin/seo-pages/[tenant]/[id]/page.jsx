@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { RefreshCw, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 
-export default function SeoPageDetailPage({ params }) {
+export default function SeoPageDetailPage(props) {
+  const params = use(props.params);
   const { tenant, id } = params;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

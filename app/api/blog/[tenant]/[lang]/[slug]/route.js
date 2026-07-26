@@ -5,7 +5,8 @@ import { query } from "@/lib/db";
  * Public Blog Single Post API
  * GET /api/blog/{tenant-slug}/{lang}/{slug}
  */
-export async function GET(req, { params }) {
+export async function GET(req, props) {
+  const params = await props.params;
   const { tenant, lang, slug } = params;
 
   const { rows: [t] } = await query(

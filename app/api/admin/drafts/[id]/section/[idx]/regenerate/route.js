@@ -13,7 +13,8 @@ export const maxDuration = 120;
  * Persistiert NICHT — liefert nur new_html/old_html, der Client bestaetigt
  * und speichert dann via PATCH section.
  */
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

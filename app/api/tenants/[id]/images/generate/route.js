@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "ai-gen");
+const UPLOAD_DIR = process.env.GHOSTWRITER_UPLOAD_DIR || "/app/public/uploads/ai-gen";
 // Container-Mount: /app/secrets:ro (siehe docker-compose.yml)
 const SECRETS_DIR = process.env.SECRETS_DIR || "/app/secrets";
 
@@ -51,9 +51,9 @@ async function isAuthed(req) {
 async function readSecret(envVar, fileName) {
   const fromEnv = process.env[envVar];
   if (fromEnv && fromEnv.trim()) return fromEnv.trim();
-  const p = path.join(SECRETS_DIR, fileName);
+  const p = path.join(/* turbopackIgnore: true */ SECRETS_DIR, fileName);
   try {
-    const txt = await readFile(p, "utf8");
+    const txt = await readFile(/* turbopackIgnore: true */ p, "utf8");
     return txt.trim();
   } catch {
     return null;
@@ -214,7 +214,8 @@ async function allowedSourceImageUrl(req, raw, tenantId) {
 }
 
 /* ---------- Hauptroute ---------- */
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await isAuthed(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

@@ -59,7 +59,8 @@ function clip(text, max) {
  * Schreibt den Plattform-Text per KI neu (Tenant-Provider + Tenant-Profil).
  * Persistiert NICHT — der Client uebernimmt den Vorschlag und speichert via PATCH social.
  */
-export async function POST(req, { params }) {
+export async function POST(req, props) {
+  const params = await props.params;
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 

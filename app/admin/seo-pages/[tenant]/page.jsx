@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { AlertTriangle, XCircle, TrendingUp, CheckCircle, RefreshCw } from "lucide-react";
 
@@ -13,7 +13,8 @@ const FLAG_LABELS = {
   flag_keyword_gap:   { label: "Keyword-Gap",     color: "text-yellow-400" },
 };
 
-export default function SeoTenantPage({ params }) {
+export default function SeoTenantPage(props) {
+  const params = use(props.params);
   const { tenant } = params;
   const [pages, setPages] = useState([]);
   const [total, setTotal] = useState(0);

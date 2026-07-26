@@ -47,7 +47,8 @@ function scoreBadgeClass(score) {
   return "badge badge-error";
 }
 
-export default async function ReviewPublishPage({ params }) {
+export default async function ReviewPublishPage(props) {
+  const params = await props.params;
   let token = params?.token || "";
   try {
     token = decodeURIComponent(token);

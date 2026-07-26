@@ -104,6 +104,7 @@ export async function POST(req) {
       alreadyPublished: result.alreadyPublished === true,
       blogUrl: result.blogUrl || null,
       publishError: result.publishError || null,
+      visualQa: result.qaVisual || null,
     });
   } catch (err) {
     // Kein Token, keine Post-Details im Log oder in der Antwort

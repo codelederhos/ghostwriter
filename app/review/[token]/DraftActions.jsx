@@ -314,6 +314,15 @@ export default function DraftActions({ token, domain, sections = [], images = nu
                       ({publishResult.publishError}).
                     </p>
                   )}
+                  {publishResult.visualQa && (
+                    <p className={`text-xs ${publishResult.visualQa.ok ? "text-emerald-700" : "text-amber-700"}`}>
+                      {publishResult.visualQa.ok
+                        ? `Visuelle Live-Prüfung bestanden (${publishResult.visualQa.findings?.score ?? "–"}/100).`
+                        : publishResult.visualQa.executed
+                          ? `Visuelle Live-Prüfung meldet Nacharbeit (${publishResult.visualQa.findings?.score ?? "–"}/100).`
+                          : "Visuelle Live-Prüfung konnte nicht abgeschlossen werden."}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">
