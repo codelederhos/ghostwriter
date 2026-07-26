@@ -14,6 +14,7 @@ import { findPostByReviewToken, publishReviewedPost } from "@/lib/review/publish
 import { getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 // Einfaches In-Memory-Rate-Limit pro IP (Single-Container-Deployment).
 const RL_WINDOW_MS = 10 * 60 * 1000;
@@ -109,6 +110,15 @@ export async function POST(req) {
   } catch (err) {
     // Kein Token, keine Post-Details im Log oder in der Antwort
     console.error("[api/review/publish] Fehler:", err.message);
+    if (err.code === "visual_qa_failed") {
+      return NextResponse.json(
+        {
+          error: err.message,
+          visualQa: err.qaVisual || null,
+        },
+        { status: 422 }
+      );
+    }
     return NextResponse.json(
       { error: "Veröffentlichung fehlgeschlagen. Bitte später erneut versuchen." },
       { status: 500 }

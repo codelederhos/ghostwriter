@@ -5,6 +5,59 @@ import { decrypt } from "@/lib/crypto";
 import { generateSeoContent } from "@/lib/pipeline/steps/seo_writer";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_GENERATE_BATCH = 10;
+const GENERATE_CONCURRENCY = 2;
+
+async function generatePageContent(tenantId, pageId) {
+  const { rows: [page] } = await query(
+    "SELECT * FROM seo_pages WHERE id = $1 AND tenant_id = $2",
+    [pageId, tenantId]
+  );
+  if (!page) {
+    const error = new Error("Page not found");
+    error.code = "page_not_found";
+    throw error;
+  }
+
+  const [{ rows: [type] }, { rows: [loc] }, { rows: [profile] }, { rows: [ts] }, { rows: [diag] }] = await Promise.all([
+    query("SELECT * FROM seo_page_types WHERE id = $1 AND tenant_id = $2", [page.page_type_id, tenantId]),
+    query("SELECT * FROM seo_locations WHERE id = $1", [page.location_id]),
+    query("SELECT * FROM tenant_profiles WHERE tenant_id = $1", [tenantId]),
+    query("SELECT * FROM tenant_settings WHERE tenant_id = $1", [tenantId]),
+    query("SELECT * FROM seo_page_diagnostics WHERE page_id = $1", [pageId]),
+  ]);
+  if (!type || !loc || !ts) throw new Error("SEO-Konfiguration unvollständig");
+
+  const settings = { ...ts };
+  for (const field of ["text_api_key", "image_api_key"]) {
+    if (settings[field]) {
+      try { settings[field] = decrypt(settings[field]); } catch { /* leave as-is */ }
+    }
+  }
+  if (settings.billing_mode === "platform") {
+    settings.text_api_key = process.env.ANTHROPIC_API_KEY;
+    settings.text_provider = "anthropic";
+  }
+
+  const result = await generateSeoContent(settings, type, loc, page.lang, profile, page, diag);
+  await query(
+    `UPDATE seo_pages SET
+      title = $2, h1 = $3, meta_description = $4,
+      intro_html = $5, local_html = $6, practical_html = $7,
+      faq_json = $8, schema_org = $9, image_alts = $10, internal_links = $11,
+      word_count = $12, ki_generated_at = NOW(), status = 'review'
+    WHERE id = $1 AND tenant_id = $13`,
+    [pageId, result.title, result.h1, result.meta_description,
+     result.intro_html, result.local_html, result.practical_html,
+     JSON.stringify(result.faq_json), JSON.stringify(result.schema_org),
+     JSON.stringify(result.image_alts), JSON.stringify(result.internal_links),
+     result.word_count, tenantId]
+  );
+  return result;
+}
 
 // ── GET: SEO Hub Daten für einen Tenant ──────────────────────────────
 export async function GET(req, props) {
@@ -281,82 +334,68 @@ export async function POST(req, props) {
     case "generate_content": {
       const { pageId } = body;
       if (!pageId) return NextResponse.json({ error: "pageId required" }, { status: 400 });
-
-      // Page + Type + Location + Profile + Settings laden
-      const { rows: [page] } = await query(
-        "SELECT * FROM seo_pages WHERE id = $1 AND tenant_id = $2", [pageId, id]
-      );
-      if (!page) return NextResponse.json({ error: "Page not found" }, { status: 404 });
-
-      const [{ rows: [type] }, { rows: [loc] }, { rows: [profile] }, { rows: [ts] }, { rows: [diag] }] = await Promise.all([
-        query("SELECT * FROM seo_page_types WHERE id = $1", [page.page_type_id]),
-        query("SELECT * FROM seo_locations WHERE id = $1", [page.location_id]),
-        query("SELECT * FROM tenant_profiles WHERE tenant_id = $1", [id]),
-        query("SELECT * FROM tenant_settings WHERE tenant_id = $1", [id]),
-        query("SELECT * FROM seo_page_diagnostics WHERE page_id = $1", [pageId]),
-      ]);
-
-      // Settings entschlüsseln
-      const settings = { ...ts };
-      for (const field of ["text_api_key", "image_api_key"]) {
-        if (settings[field]) {
-          try { settings[field] = decrypt(settings[field]); } catch { /* leave as-is */ }
+      if (!UUID_RE.test(String(pageId))) {
+        return NextResponse.json({ error: "invalid pageId" }, { status: 400 });
+      }
+      try {
+        const result = await generatePageContent(id, pageId);
+        return NextResponse.json({ ok: true, result });
+      } catch (error) {
+        if (error.code === "page_not_found") {
+          return NextResponse.json({ error: "Page not found" }, { status: 404 });
         }
+        throw error;
       }
-      // Platform-Mode Fallback
-      if (settings.billing_mode === "platform") {
-        settings.text_api_key = process.env.ANTHROPIC_API_KEY;
-        settings.text_provider = "anthropic";
-      }
-
-      const result = await generateSeoContent(settings, type, loc, page.lang, profile, page, diag);
-
-      // In DB speichern
-      await query(
-        `UPDATE seo_pages SET
-          title = $2, h1 = $3, meta_description = $4,
-          intro_html = $5, local_html = $6, practical_html = $7,
-          faq_json = $8, schema_org = $9, image_alts = $10, internal_links = $11,
-          word_count = $12, ki_generated_at = NOW(), status = 'review'
-        WHERE id = $1`,
-        [pageId, result.title, result.h1, result.meta_description,
-         result.intro_html, result.local_html, result.practical_html,
-         JSON.stringify(result.faq_json), JSON.stringify(result.schema_org),
-         JSON.stringify(result.image_alts), JSON.stringify(result.internal_links),
-         result.word_count]
-      );
-
-      return NextResponse.json({ ok: true, result });
     }
 
     // ── Batch KI Generation ────────────────────────────────────
     case "generate_batch": {
       const { pageIds } = body;
-      if (!pageIds?.length) return NextResponse.json({ error: "pageIds required" }, { status: 400 });
+      if (!Array.isArray(pageIds) || pageIds.length === 0) {
+        return NextResponse.json({ error: "pageIds required" }, { status: 400 });
+      }
+      const uniqueIds = [...new Set(pageIds.map((value) => String(value)))];
+      if (uniqueIds.length > MAX_GENERATE_BATCH) {
+        return NextResponse.json(
+          { error: `Maximal ${MAX_GENERATE_BATCH} Seiten pro Batch` },
+          { status: 400 }
+        );
+      }
+      if (uniqueIds.some((pageId) => !UUID_RE.test(pageId))) {
+        return NextResponse.json({ error: "invalid pageId" }, { status: 400 });
+      }
 
-      // Async starten — nicht warten
-      // Wir geben sofort zurück und verarbeiten im Hintergrund
-      const startedAt = Date.now();
-      let done = 0;
-      const total = pageIds.length;
-
-      // Fire & forget (ohne await im Response-Kontext)
-      (async () => {
-        for (const pid of pageIds) {
+      const queue = [...uniqueIds];
+      const succeeded = [];
+      const failed = [];
+      const worker = async () => {
+        while (queue.length) {
+          const pageId = queue.shift();
           try {
-            const innerRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3200"}/api/tenants/${id}/seo`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Cookie: `session=${/* pass through */ ""}` },
-              body: JSON.stringify({ action: "generate_content", pageId: pid }),
+            await generatePageContent(id, pageId);
+            succeeded.push(pageId);
+          } catch (error) {
+            failed.push({
+              pageId,
+              error: error.code === "page_not_found" ? "Page not found" : "Generierung fehlgeschlagen",
             });
-            done++;
-          } catch (e) {
-            console.error(`[SEO Batch] Failed page ${pid}:`, e.message);
+            console.error(`[SEO Batch] Failed page ${pageId}:`, error.message);
           }
         }
-      })();
+      };
+      await Promise.all(
+        Array.from(
+          { length: Math.min(GENERATE_CONCURRENCY, uniqueIds.length) },
+          () => worker()
+        )
+      );
 
-      return NextResponse.json({ ok: true, total, message: `Batch gestartet für ${total} Seiten` });
+      return NextResponse.json({
+        ok: failed.length === 0,
+        total: uniqueIds.length,
+        succeeded,
+        failed,
+      }, { status: failed.length ? 207 : 200 });
     }
 
     default:

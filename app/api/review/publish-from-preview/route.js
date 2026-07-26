@@ -89,6 +89,16 @@ export async function POST(req) {
   } catch (err) {
     // Kein Token, keine Post-Details im Log oder in der Antwort
     console.error("[api/review/publish-from-preview] Fehler:", err.message);
+    if (err.code === "visual_qa_failed") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: err.message,
+          visualQa: err.qaVisual || null,
+        },
+        { status: 422 }
+      );
+    }
     return NextResponse.json(
       { ok: false, error: "Veröffentlichung fehlgeschlagen. Bitte später erneut versuchen." },
       { status: 500 }

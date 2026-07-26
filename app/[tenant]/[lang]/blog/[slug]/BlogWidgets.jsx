@@ -29,7 +29,6 @@ export default function BlogWidgets({ staticMode = false }) {
             applyChartDefaults(config, isStatic);
             const canvas = document.createElement("canvas");
             el.appendChild(canvas);
-            // eslint-disable-next-line no-undef
             new Chart(canvas, config);
           } catch (e) {
             console.warn("[BlogWidgets] Chart init failed:", e);

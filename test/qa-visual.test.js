@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
-import { prepareVisionImages } from "../lib/pipeline/steps/qa_visual.js";
+import { prepareVisionImages, QA_VIEWPORTS } from "../lib/pipeline/steps/qa_visual.js";
+
+test("visual QA covers desktop and both supported mobile widths", () => {
+  assert.deepEqual(
+    QA_VIEWPORTS.map(({ name, width }) => [name, width]),
+    [["desktop", 1440], ["mobile", 390], ["mobile_360", 360]]
+  );
+});
 
 test("long mobile screenshots keep readable-width tiles instead of one narrow full-page image", async () => {
   const screenshot = await sharp({
