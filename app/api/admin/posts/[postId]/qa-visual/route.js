@@ -56,7 +56,7 @@ export async function POST(request, { params }) {
   let blogUrl;
   try {
     blogUrl = await validateTrustedQaUrl({
-      candidate: post.blog_url || body.blogUrl,
+      candidate: body.blogUrl || post.blog_url,
       tenantDomain: tenant.domain,
       baseUrl: process.env.NEXT_PUBLIC_BASE_URL,
       tenantSlug: tenant.slug,
