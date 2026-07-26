@@ -44,7 +44,7 @@ export async function POST(req) {
     await recordLoginAttempt(ipHash, normEmail, true);
 
     const { token, expiresAt } = await createSession(user.id);
-    setSessionCookie(token, expiresAt);
+    await setSessionCookie(token, expiresAt);
 
     return NextResponse.json({
       ok: true,
