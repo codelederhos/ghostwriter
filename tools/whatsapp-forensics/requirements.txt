@@ -1,0 +1,10 @@
+# Basis (PDF, Audio-Metadaten, ffmpeg-Binary ohne Systeminstallation)
+reportlab>=4.0
+mutagen>=1.47
+imageio-ffmpeg>=0.4.9
+
+# Lokale Transkription (empfohlen, Audio verlaesst den Rechner nicht)
+faster-whisper>=1.0
+
+# Alternative: Transkription ueber die OpenAI-API
+# openai>=1.30
